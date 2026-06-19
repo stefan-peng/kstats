@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import App from "./App"
@@ -28,7 +28,6 @@ const dashboard = {
       mime_type: "application/epub+zip",
     },
   ],
-  recent_books: [],
   top_books: [],
 }
 
@@ -55,6 +54,22 @@ function mockFetch() {
           pages: 1,
         })
       }
+      if (url.includes("/api/book?")) {
+        return Response.json({
+          ...dashboard.continue_reading[0],
+          bookmarks: [
+            {
+              id: "highlight-1",
+              text: "Highlighted text",
+              annotation: "A note",
+              type: "highlight",
+              created_at: "2026-06-16T11:30:00Z",
+              chapter_progress: 0.4,
+              color: 0,
+            },
+          ],
+        })
+      }
       if (url.includes("/api/import")) {
         return Response.json({
           connected: true,
@@ -69,27 +84,72 @@ function mockFetch() {
 }
 
 beforeEach(mockFetch)
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 test("renders overview metrics from the imported snapshot", async () => {
   render(<App />)
   expect(await screen.findByRole("heading", { name: "Reading overview" })).toBeVisible()
   expect(screen.getByText("3h 1m")).toBeVisible()
-  expect(screen.getByText("Current Book")).toBeVisible()
+  expect(screen.getAllByText("Current Book")).toHaveLength(2)
+  expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
+  expect(screen.queryByRole("button", { name: "Open navigation" })).not.toBeInTheDocument()
 })
 
-test("opens the library and exposes sortable headers", async () => {
+test("shows an explicit device status while loading", () => {
+  render(<App />)
+  expect(screen.getByText("Checking Kobo")).toBeVisible()
+})
+
+test("does not claim to use a snapshot when none is available", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/device/status")) {
+        return Response.json({
+          connected: false,
+          snapshot_available: false,
+          imported_at: null,
+          source: null,
+        })
+      }
+      throw new Error(`Unhandled request: ${input}`)
+    }),
+  )
+  render(<App />)
+  expect(await screen.findByText("No snapshot")).toBeVisible()
+  expect(screen.queryByText("Using snapshot")).not.toBeInTheDocument()
+})
+
+test("supports library search and sortable headers on the dashboard", async () => {
   const user = userEvent.setup()
   render(<App />)
-  await screen.findByRole("heading", { name: "Reading overview" })
-  await user.click(screen.getAllByRole("button", { name: "Library" })[0])
-  expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
+  const bookHeader = (await screen.findAllByRole("columnheader", { name: /Book/ }))[0]
+  expect(bookHeader).toHaveAttribute("aria-sort", "none")
+  await user.click(within(bookHeader).getByRole("button"))
   await waitFor(() => {
-    expect(screen.getAllByRole("columnheader", { name: /Book/ })[0]).toHaveAttribute(
-      "aria-sort",
-      "none",
+    expect(bookHeader).toHaveAttribute("aria-sort", "ascending")
+  })
+
+  await user.type(screen.getByRole("textbox", { name: "Search library" }), "Current")
+  await waitFor(() => {
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("search=Current"),
+      undefined,
     )
   })
+})
+
+test("opens book details from the embedded library", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+  const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  await user.click(row)
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByRole("heading", { name: "Current Book" })).toBeVisible()
+  expect(within(dialog).getByText("Highlighted text")).toBeVisible()
 })
 
 test("refreshes the device snapshot", async () => {

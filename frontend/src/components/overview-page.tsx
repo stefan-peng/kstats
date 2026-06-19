@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   BookCheck,
   BookOpenText,
   Clock3,
@@ -30,17 +29,9 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { formatDate, formatDuration, formatMonth, formatNumber } from "@/lib/format"
 import type { DashboardData, DeviceStatus } from "@/types"
-import { StatusBadge } from "./status-badge"
+import { LibrarySection } from "./library-page"
 
 export function OverviewPage({
   dashboard,
@@ -50,7 +41,6 @@ export function OverviewPage({
   error,
   onRefresh,
   onOpenBook,
-  onOpenLibrary,
 }: {
   dashboard: DashboardData | null
   device: DeviceStatus | null
@@ -59,7 +49,6 @@ export function OverviewPage({
   error: string | null
   onRefresh: () => void
   onOpenBook: (contentId: string) => void
-  onOpenLibrary: () => void
 }) {
   if (loading) {
     return <OverviewSkeleton />
@@ -266,17 +255,11 @@ export function OverviewPage({
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The books waiting for your next page.
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onOpenLibrary}>
-            View library
-            <ArrowRight data-icon="inline-end" />
-          </Button>
+        <div>
+          <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The books waiting for your next page.
+          </p>
         </div>
         {dashboard.continue_reading.length === 0 ? (
           <p className="rounded-lg border p-6 text-sm text-muted-foreground">
@@ -311,53 +294,10 @@ export function OverviewPage({
 
       <Separator />
 
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="font-serif text-2xl font-semibold">Recent books</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Latest activity from the imported snapshot.
-          </p>
-        </div>
-        <div className="overflow-hidden rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Book</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Progress</TableHead>
-                <TableHead className="hidden lg:table-cell">Reading time</TableHead>
-                <TableHead className="text-right">Last read</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dashboard.recent_books.map((book) => (
-                <TableRow
-                  key={book.content_id}
-                  className="cursor-pointer"
-                  onClick={() => onOpenBook(book.content_id)}
-                >
-                  <TableCell>
-                    <p className="font-medium">{book.title}</p>
-                    <p className="text-xs text-muted-foreground">{book.author}</p>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={book.status} />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {book.percent_read}%
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {formatDuration(book.reading_seconds)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatDate(book.date_last_read)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
+      <LibrarySection
+        onOpenBook={onOpenBook}
+        snapshotVersion={device?.imported_at}
+      />
     </main>
   )
 }

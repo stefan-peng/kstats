@@ -42,10 +42,12 @@ import { StatusBadge } from "./status-badge"
 
 const helper = createColumnHelper<Book>()
 
-export function LibraryPage({
+export function LibrarySection({
   onOpenBook,
+  snapshotVersion,
 }: {
   onOpenBook: (contentId: string) => void
+  snapshotVersion: string | null | undefined
 }) {
   const [data, setData] = useState<BooksResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,7 +92,7 @@ export function LibraryPage({
     return () => {
       active = false
     }
-  }, [availability, debouncedSearch, page, sorting, status])
+  }, [availability, debouncedSearch, page, snapshotVersion, sorting, status])
 
   const columns = useMemo(
     () => [
@@ -150,9 +152,11 @@ export function LibraryPage({
   })
 
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-7 p-5 md:p-8 lg:p-10">
+    <section className="flex flex-col gap-7" aria-labelledby="library-heading">
       <header>
-        <h1 className="font-serif text-4xl font-semibold tracking-tight">Library</h1>
+        <h2 id="library-heading" className="font-serif text-2xl font-semibold">
+          Library
+        </h2>
         <p className="mt-2 text-muted-foreground">
           Search and sort every book in your native Kobo library.
         </p>
@@ -326,7 +330,6 @@ export function LibraryPage({
           </Button>
         </div>
       </footer>
-    </main>
+    </section>
   )
 }
-

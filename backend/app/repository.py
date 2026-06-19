@@ -123,16 +123,6 @@ class Repository:
                 parameters,
             ).fetchall()
 
-            recent_rows = connection.execute(
-                f"""
-                {BOOK_SELECT}
-                WHERE {where} AND DateLastRead IS NOT NULL
-                ORDER BY DateLastRead DESC
-                LIMIT 8
-                """,
-                parameters,
-            ).fetchall()
-
             top_rows = connection.execute(
                 f"""
                 {BOOK_SELECT}
@@ -159,7 +149,6 @@ class Repository:
                 dict(row) for row in reversed(monthly_rows) if row["month"]
             ],
             "continue_reading": [serialize_book(row) for row in continue_rows],
-            "recent_books": [serialize_book(row) for row in recent_rows],
             "top_books": [serialize_book(row) for row in top_rows],
         }
 

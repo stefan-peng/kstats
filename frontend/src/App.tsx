@@ -4,13 +4,11 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { api } from "@/lib/api"
 import type { DashboardData, DeviceStatus } from "@/types"
-import { AppShell, type Page } from "./components/app-shell"
+import { AppShell } from "./components/app-shell"
 import { BookDetailDialog } from "./components/book-detail-dialog"
-import { LibraryPage } from "./components/library-page"
 import { OverviewPage } from "./components/overview-page"
 
 export default function App() {
-  const [page, setPage] = useState<Page>("overview")
   const [device, setDevice] = useState<DeviceStatus | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [selectedBook, setSelectedBook] = useState<string | null>(null)
@@ -55,21 +53,16 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <AppShell page={page} onPageChange={setPage} device={device}>
-        {page === "overview" ? (
-          <OverviewPage
-            dashboard={dashboard}
-            device={device}
-            loading={loading}
-            refreshing={refreshing}
-            error={error}
-            onRefresh={refresh}
-            onOpenBook={setSelectedBook}
-            onOpenLibrary={() => setPage("library")}
-          />
-        ) : (
-          <LibraryPage onOpenBook={setSelectedBook} />
-        )}
+      <AppShell device={device}>
+        <OverviewPage
+          dashboard={dashboard}
+          device={device}
+          loading={loading}
+          refreshing={refreshing}
+          error={error}
+          onRefresh={refresh}
+          onOpenBook={setSelectedBook}
+        />
       </AppShell>
       <BookDetailDialog
         contentId={selectedBook}
@@ -79,4 +72,3 @@ export default function App() {
     </TooltipProvider>
   )
 }
-

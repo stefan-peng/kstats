@@ -51,7 +51,6 @@ export interface DashboardData {
   status_counts: Record<ReadingStatus, number>
   monthly_completions: Array<{ month: string; count: number }>
   continue_reading: Book[]
-  recent_books: Book[]
   top_books: Book[]
 }
 
@@ -62,4 +61,3 @@ export interface BooksResponse {
   total: number
   pages: number
 }
-

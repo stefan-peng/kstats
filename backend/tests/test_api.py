@@ -45,6 +45,7 @@ def test_startup_import_and_dashboard_exclude_pocket(client):
     }
     assert payload["continue_reading"][0]["title"] == "Current Book"
     assert payload["monthly_completions"] == [{"month": "2026-05", "count": 1}]
+    assert "recent_books" not in payload
 
 
 def test_books_support_search_filters_and_sorting(client):
