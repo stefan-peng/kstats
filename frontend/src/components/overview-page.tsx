@@ -170,7 +170,11 @@ export function OverviewPage({
                     isAnimationActive={false}
                   >
                     {statusData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
+                      <Cell
+                        key={entry.name}
+                        fill={entry.color}
+                        stroke="var(--card)"
+                      />
                     ))}
                   </Pie>
                   <RechartsTooltip

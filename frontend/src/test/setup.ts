@@ -15,8 +15,30 @@ Object.defineProperty(window, "matchMedia", {
 })
 
 globalThis.ResizeObserver = class ResizeObserver {
-  observe() {}
+  constructor(private readonly callback: ResizeObserverCallback) {}
+
+  observe(target: Element) {
+    this.callback(
+      [
+        {
+          target,
+          contentRect: {
+            width: 800,
+            height: 400,
+            top: 0,
+            right: 800,
+            bottom: 400,
+            left: 0,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+          },
+        } as ResizeObserverEntry,
+      ],
+      this,
+    )
+  }
+
   unobserve() {}
   disconnect() {}
 }
-

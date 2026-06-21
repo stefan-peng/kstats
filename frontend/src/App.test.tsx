@@ -98,6 +98,13 @@ test("renders overview metrics from the imported snapshot", async () => {
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
   expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
   expect(screen.queryByRole("button", { name: "Open navigation" })).not.toBeInTheDocument()
+  await waitFor(() => {
+    const sectors = document.querySelectorAll(".recharts-pie-sector path")
+    expect(sectors).toHaveLength(3)
+    sectors.forEach((sector) => {
+      expect(sector).toHaveAttribute("stroke", "var(--card)")
+    })
+  })
 })
 
 test("shows an explicit device status while loading", () => {
