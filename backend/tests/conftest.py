@@ -136,7 +136,15 @@ def create_fixture_database(path: Path) -> None:
         """
         INSERT INTO Bookmark VALUES (
             'highlight-1', 'book-reading', 'Highlighted text', 'A note',
-            'highlight', '2026-06-16T11:30:00Z', 0.4, 0, 0
+            'highlight', '2026-06-16T11:30:00Z', 0.4, 0, 'false'
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO Bookmark VALUES (
+            'hidden-highlight', 'book-reading', 'Hidden text', NULL,
+            'highlight', '2026-06-17T11:30:00Z', 0.5, 0, 'true'
         )
         """
     )
@@ -155,4 +163,3 @@ def settings(tmp_path: Path) -> Settings:
 def client(settings: Settings):
     with TestClient(create_app(settings)) as test_client:
         yield test_client
-

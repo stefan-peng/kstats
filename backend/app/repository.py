@@ -236,7 +236,9 @@ class Repository:
                        Type AS type, DateCreated AS created_at,
                        ChapterProgress AS chapter_progress, Color AS color
                 FROM Bookmark
-                WHERE VolumeID = ? AND COALESCE(Hidden, 0) = 0
+                WHERE VolumeID = ?
+                  AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT)))
+                      IN ('0', 'false')
                 ORDER BY DateCreated DESC
                 """,
                 [content_id],
