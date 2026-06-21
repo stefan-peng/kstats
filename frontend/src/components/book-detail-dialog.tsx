@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
 import { formatDate, formatDuration, formatNumber } from "@/lib/format"
 import type { BookDetail } from "@/types"
+import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
 
 export function BookDetailDialog({
@@ -130,9 +131,7 @@ export function BookDetailDialog({
               {book.description && (
                 <>
                   <Separator />
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {book.description}
-                  </p>
+                  <FormattedText>{book.description}</FormattedText>
                 </>
               )}
 
@@ -174,4 +173,3 @@ export function BookDetailDialog({
     </Dialog>
   )
 }
-

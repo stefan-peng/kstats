@@ -57,6 +57,8 @@ function mockFetch() {
       if (url.includes("/api/book?")) {
         return Response.json({
           ...dashboard.continue_reading[0],
+          description:
+            '<p><strong>Formatted introduction</strong> with <em>emphasis</em>.</p><a href="//evil.example">unsafe link</a><script>unsafe text</script>',
           bookmarks: [
             {
               id: "highlight-1",
@@ -149,6 +151,10 @@ test("opens book details from the embedded library", async () => {
   await user.click(row)
   const dialog = await screen.findByRole("dialog")
   expect(within(dialog).getByRole("heading", { name: "Current Book" })).toBeVisible()
+  expect(within(dialog).getByText("Formatted introduction").tagName).toBe("STRONG")
+  expect(within(dialog).getByText("emphasis").tagName).toBe("EM")
+  expect(within(dialog).getByText("unsafe link")).not.toHaveAttribute("href")
+  expect(within(dialog).queryByText("unsafe text")).not.toBeInTheDocument()
   expect(within(dialog).getByText("Highlighted text")).toBeVisible()
 })
 
