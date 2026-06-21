@@ -19,6 +19,9 @@ const dashboard = {
       date_last_read: "2026-06-16T12:00:00Z",
       last_started_at: null,
       finished_at: null,
+      current_chapter_estimate_seconds: 4060,
+      rest_of_book_estimate_seconds: 11507,
+      remaining_seconds: 15567,
       downloaded: true,
       word_count: 80000,
       series: null,
@@ -95,6 +98,7 @@ test("renders overview metrics from the imported snapshot", async () => {
   render(<App />)
   expect(await screen.findByRole("heading", { name: "Reading overview" })).toBeVisible()
   expect(screen.getByText("3h 1m")).toBeVisible()
+  expect(await screen.findByText("4h 19m")).toBeVisible()
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
   expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
   expect(screen.queryByRole("button", { name: "Open navigation" })).not.toBeInTheDocument()
@@ -142,6 +146,17 @@ test("supports library search and sortable headers on the dashboard", async () =
     expect(bookHeader).toHaveAttribute("aria-sort", "ascending")
   })
 
+  const remainingHeader = screen.getByRole("columnheader", {
+    name: "Time remaining",
+  })
+  await user.click(within(remainingHeader).getByRole("button"))
+  await waitFor(() => {
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("sort=remaining_time"),
+      undefined,
+    )
+  })
+
   await user.type(screen.getByRole("textbox", { name: "Search library" }), "Current")
   await waitFor(() => {
     expect(fetch).toHaveBeenCalledWith(
@@ -163,6 +178,119 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).getByText("unsafe link")).not.toHaveAttribute("href")
   expect(within(dialog).queryByText("unsafe text")).not.toBeInTheDocument()
   expect(within(dialog).getByText("Highlighted text")).toBeVisible()
+  expect(within(dialog).queryByText("Times opened")).not.toBeInTheDocument()
+  expect(within(dialog).getByText("Estimated time remaining")).toBeVisible()
+  expect(within(dialog).getByText("4h 19m")).toBeVisible()
+  expect(within(dialog).getByText("1h 7m")).toBeVisible()
+  expect(within(dialog).getByText("3h 11m")).toBeVisible()
+})
+
+test("suppresses unavailable remaining time", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        return Response.json({
+          connected: false,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: null,
+        })
+      }
+      if (url.includes("/api/dashboard")) {
+        return Response.json({
+          ...dashboard,
+          continue_reading: [],
+        })
+      }
+      if (url.includes("/api/books")) {
+        return Response.json({
+          items: [
+            {
+              ...dashboard.continue_reading[0],
+              status: "finished",
+              remaining_seconds: 0,
+              current_chapter_estimate_seconds: 0,
+              rest_of_book_estimate_seconds: 0,
+            },
+          ],
+          page: 1,
+          page_size: 20,
+          total: 1,
+          pages: 1,
+        })
+      }
+      if (url.includes("/api/book?")) {
+        return Response.json({
+          ...dashboard.continue_reading[0],
+          status: "finished",
+          remaining_seconds: 0,
+          current_chapter_estimate_seconds: 0,
+          rest_of_book_estimate_seconds: 0,
+          bookmarks: [],
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const user = userEvent.setup()
+  render(<App />)
+  const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  expect(within(row).getByText("—")).toBeVisible()
+  await user.click(row)
+  const dialog = await screen.findByRole("dialog")
+  expect(
+    within(dialog).queryByText("Estimated time remaining"),
+  ).not.toBeInTheDocument()
+})
+
+test("shows unavailable chapter estimate as a dash", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        return Response.json({
+          connected: false,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: null,
+        })
+      }
+      if (url.includes("/api/dashboard")) return Response.json(dashboard)
+      if (url.includes("/api/books")) {
+        return Response.json({
+          items: dashboard.continue_reading,
+          page: 1,
+          page_size: 20,
+          total: 1,
+          pages: 1,
+        })
+      }
+      if (url.includes("/api/book?")) {
+        return Response.json({
+          ...dashboard.continue_reading[0],
+          current_chapter_estimate_seconds: 0,
+          rest_of_book_estimate_seconds: 11507,
+          remaining_seconds: 11507,
+          bookmarks: [],
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const user = userEvent.setup()
+  render(<App />)
+  const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  await user.click(row)
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByText("Estimated time remaining")).toBeVisible()
+  const chapterLabel = within(dialog).getByText("Current chapter")
+  expect(chapterLabel.nextElementSibling).toHaveTextContent("—")
+  expect(within(dialog).queryByText("0s")).not.toBeInTheDocument()
 })
 
 test("refreshes the device snapshot", async () => {

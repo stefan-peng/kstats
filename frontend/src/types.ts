@@ -18,6 +18,9 @@ export interface Book {
   date_last_read: string | null
   last_started_at: string | null
   finished_at: string | null
+  current_chapter_estimate_seconds: number
+  rest_of_book_estimate_seconds: number
+  remaining_seconds: number
   downloaded: boolean
   word_count: number | null
   series: string | null

@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react"
-import { BookOpenText, CalendarDays, Clock3, Highlighter } from "lucide-react"
+import {
+  CalendarDays,
+  Clock3,
+  Highlighter,
+  Timer,
+} from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -78,19 +90,12 @@ export function BookDetailDialog({
                 <Progress value={book.percent_read} />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-start gap-3 rounded-lg border p-3">
                   <Clock3 className="mt-0.5 size-4 text-muted-foreground" />
                   <div>
                     <p className="text-xs text-muted-foreground">Reading time</p>
                     <p className="font-medium">{formatDuration(book.reading_seconds)}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border p-3">
-                  <BookOpenText className="mt-0.5 size-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Times opened</p>
-                    <p className="font-medium">{formatNumber(book.times_started)}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-lg border p-3">
@@ -101,6 +106,40 @@ export function BookDetailDialog({
                   </div>
                 </div>
               </div>
+
+              {book.status === "reading" && book.remaining_seconds > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-start gap-3">
+                      <Timer className="mt-0.5 size-5 text-primary" />
+                      <div>
+                        <CardDescription>Estimated time remaining</CardDescription>
+                        <CardTitle className="mt-1 font-serif text-2xl">
+                          {formatDuration(book.remaining_seconds)}
+                        </CardTitle>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-muted-foreground">Current chapter</p>
+                      <p className="font-medium">
+                        {book.current_chapter_estimate_seconds > 0
+                          ? formatDuration(book.current_chapter_estimate_seconds)
+                          : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">After this chapter</p>
+                      <p className="font-medium">
+                        {book.rest_of_book_estimate_seconds > 0
+                          ? formatDuration(book.rest_of_book_estimate_seconds)
+                          : "—"}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               {(book.series || book.publisher || book.word_count) && (
                 <div className="grid gap-3 text-sm sm:grid-cols-2">

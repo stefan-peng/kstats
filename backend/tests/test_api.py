@@ -65,6 +65,19 @@ def test_books_support_search_filters_and_sorting(client):
     assert payload["items"][0]["downloaded"] is True
 
 
+def test_books_sort_by_in_progress_remaining_time(client):
+    response = client.get(
+        "/api/books",
+        params={"sort": "remaining_time", "direction": "desc"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["content_id"] == "book-reading"
+    assert payload["items"][0]["remaining_seconds"] == 15567
+    assert payload["items"][-1]["remaining_seconds"] == 0
+
+
 def test_books_searches_visible_fallback_title(client, settings):
     insert_book(
         settings.snapshot_db,
@@ -118,6 +131,9 @@ def test_book_detail_includes_visible_highlights(client):
     response = client.get("/api/book", params={"content_id": "book-reading"})
     payload = response.json()
     assert payload["word_count"] == 80000
+    assert payload["current_chapter_estimate_seconds"] == 4060
+    assert payload["rest_of_book_estimate_seconds"] == 11507
+    assert payload["remaining_seconds"] == 15567
     assert payload["bookmarks"] == [
         {
             "id": "highlight-1",
@@ -129,6 +145,16 @@ def test_book_detail_includes_visible_highlights(client):
             "color": 0,
         }
     ]
+
+
+def test_finished_book_suppresses_stale_reading_estimates(client):
+    response = client.get("/api/book", params={"content_id": "book-finished"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_chapter_estimate_seconds"] == 0
+    assert payload["rest_of_book_estimate_seconds"] == 0
+    assert payload["remaining_seconds"] == 0
 
 
 def test_failed_import_keeps_previous_snapshot(settings):

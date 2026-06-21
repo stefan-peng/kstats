@@ -128,6 +128,14 @@ export function LibrarySection({
         header: "Reading time",
         cell: ({ getValue }) => formatDuration(getValue()),
       }),
+      helper.accessor("remaining_seconds", {
+        id: "remaining_time",
+        header: "Time remaining",
+        cell: ({ getValue, row }) =>
+          row.original.status === "reading" && getValue() > 0
+            ? formatDuration(getValue())
+            : "—",
+      }),
       helper.accessor("date_last_read", {
         id: "last_read",
         header: "Last read",
@@ -223,7 +231,9 @@ export function LibrarySection({
                       <TableHead
                         key={header.id}
                         className={
-                          ["progress", "reading_time"].includes(header.column.id)
+                          ["progress", "reading_time", "remaining_time"].includes(
+                            header.column.id,
+                          )
                             ? "hidden md:table-cell"
                             : header.column.id === "last_read"
                               ? "hidden sm:table-cell"
@@ -262,14 +272,14 @@ export function LibrarySection({
               {loading ? (
                 Array.from({ length: 8 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={6}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     No books match these filters.
                   </TableCell>
                 </TableRow>
@@ -284,7 +294,9 @@ export function LibrarySection({
                       <TableCell
                         key={cell.id}
                         className={
-                          ["progress", "reading_time"].includes(cell.column.id)
+                          ["progress", "reading_time", "remaining_time"].includes(
+                            cell.column.id,
+                          )
                             ? "hidden md:table-cell"
                             : cell.column.id === "last_read"
                               ? "hidden sm:table-cell"

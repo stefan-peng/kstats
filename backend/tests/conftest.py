@@ -28,7 +28,9 @@ CREATE TABLE content (
     Series TEXT,
     SeriesNumber TEXT,
     Publisher TEXT,
-    Description TEXT
+    Description TEXT,
+    CurrentChapterEstimate INTEGER,
+    RestOfBookEstimate INTEGER
 );
 CREATE TABLE Bookmark (
     BookmarkID TEXT PRIMARY KEY,
@@ -50,7 +52,7 @@ def create_fixture_database(path: Path) -> None:
     connection.executemany(
         """
         INSERT INTO content VALUES (
-            ?, 6, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, 6, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         """,
         [
@@ -72,6 +74,8 @@ def create_fixture_database(path: Path) -> None:
                 "1",
                 "Press",
                 "Description",
+                4060,
+                11507,
             ),
             (
                 "book-finished",
@@ -91,6 +95,8 @@ def create_fixture_database(path: Path) -> None:
                 None,
                 None,
                 None,
+                627,
+                6000,
             ),
             (
                 "book-cloud",
@@ -105,6 +111,8 @@ def create_fixture_database(path: Path) -> None:
                 None,
                 None,
                 "false",
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -125,6 +133,8 @@ def create_fixture_database(path: Path) -> None:
                 "2026-06-01T12:00:00Z",
                 1,
                 1000,
+                None,
+                None,
                 None,
                 None,
                 None,

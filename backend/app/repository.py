@@ -24,6 +24,22 @@ SELECT
     DateLastRead AS date_last_read,
     LastTimeStartedReading AS last_started_at,
     LastTimeFinishedReading AS finished_at,
+    CASE
+        WHEN COALESCE(ReadStatus, 0) = 1
+        THEN MAX(COALESCE(CurrentChapterEstimate, 0), 0)
+        ELSE 0
+    END AS current_chapter_estimate_seconds,
+    CASE
+        WHEN COALESCE(ReadStatus, 0) = 1
+        THEN MAX(COALESCE(RestOfBookEstimate, 0), 0)
+        ELSE 0
+    END AS rest_of_book_estimate_seconds,
+    CASE
+        WHEN COALESCE(ReadStatus, 0) = 1
+        THEN MAX(COALESCE(CurrentChapterEstimate, 0), 0)
+            + MAX(COALESCE(RestOfBookEstimate, 0), 0)
+        ELSE 0
+    END AS remaining_seconds,
     CASE WHEN lower(CAST(IsDownloaded AS TEXT)) IN ('1', 'true') THEN 1 ELSE 0 END
         AS downloaded,
     CASE WHEN COALESCE(WordCount, -1) > 0 THEN WordCount ELSE NULL END AS word_count,
@@ -193,6 +209,7 @@ class Repository:
             "status": "read_status",
             "progress": "percent_read",
             "reading_time": "reading_seconds",
+            "remaining_time": "remaining_seconds",
             "last_read": "date_last_read",
         }
         sort_column = sort_columns.get(sort, "date_last_read")
