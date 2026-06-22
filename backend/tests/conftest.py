@@ -1,5 +1,7 @@
 import sqlite3
+import struct
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -43,7 +45,43 @@ CREATE TABLE Bookmark (
     Color INTEGER,
     Hidden INTEGER
 );
+CREATE TABLE Event (
+    EventType INTEGER NOT NULL,
+    EventCount INTEGER,
+    LastOccurrence TEXT,
+    ContentID TEXT,
+    Checksum TEXT,
+    ExtraData BLOB
+);
 """
+
+
+def qstring(value: str) -> bytes:
+    encoded = value.encode("utf-16-be")
+    return struct.pack(">I", len(encoded)) + encoded
+
+
+def qvariant(value: Any) -> bytes:
+    if value is None:
+        return struct.pack(">IBI", 0, 1, 0xFFFFFFFF)
+    if isinstance(value, bool):
+        return struct.pack(">IBB", 1, 0, int(value))
+    if isinstance(value, int):
+        return struct.pack(">IBi", 2, 0, value)
+    if isinstance(value, str):
+        return struct.pack(">IB", 10, 0) + qstring(value)
+    if isinstance(value, list):
+        return (
+            struct.pack(">IBI", 9, 0, len(value))
+            + b"".join(qvariant(item) for item in value)
+        )
+    raise TypeError(f"Unsupported fixture QVariant: {type(value)}")
+
+
+def event_payload(values: dict[str, Any]) -> bytes:
+    return struct.pack(">I", len(values)) + b"".join(
+        qstring(key) + qvariant(value) for key, value in values.items()
+    )
 
 
 def create_fixture_database(path: Path) -> None:
@@ -157,6 +195,56 @@ def create_fixture_database(path: Path) -> None:
             'highlight', '2026-06-17T11:30:00Z', 0.5, 0, 'true'
         )
         """
+    )
+    connection.executemany(
+        """
+        INSERT INTO Event (
+            EventType, EventCount, LastOccurrence, ContentID, Checksum, ExtraData
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                9,
+                2,
+                "2026-06-16T11:50:00Z",
+                "book-reading",
+                "dictionary-lookups",
+                event_payload(
+                    {
+                        "DictionaryName": "en",
+                        "Word": "perspicacious",
+                        "eventTimestamps": [1781610000, 1781610300],
+                    }
+                ),
+            ),
+            (
+                9,
+                1,
+                "2026-06-16T11:45:00Z",
+                "book-reading",
+                "duplicate-dictionary-lookup",
+                event_payload(
+                    {
+                        "DictionaryName": "EN",
+                        "Word": " Perspicacious ",
+                    }
+                ),
+            ),
+            (
+                9,
+                1,
+                "2026-05-20T12:00:00Z",
+                "book-finished",
+                "other-book",
+                event_payload(
+                    {
+                        "DictionaryName": "en",
+                        "Word": "unrelated",
+                        "eventTimestamps": [1779278400],
+                    }
+                ),
+            ),
+        ],
     )
     connection.commit()
     connection.close()

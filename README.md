@@ -31,3 +31,9 @@ git diff --check
 The source Kobo database is opened read-only and is never modified. Pocket
 articles and unsupported content types are excluded from book statistics.
 
+## Maintenance
+
+Kobo `Event.ExtraData` values use a Qt binary serialization format that may
+change with firmware updates. Periodically verify the decoder in
+`backend/app/kobo_events.py` against current device data, including new event
+fields or event types that could support useful, reliable book details.

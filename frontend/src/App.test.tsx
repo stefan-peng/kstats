@@ -15,9 +15,7 @@ const dashboard = {
       status: "reading",
       reading_seconds: 3661,
       percent_read: 42,
-      times_started: 3,
       date_last_read: "2026-06-16T12:00:00Z",
-      last_started_at: null,
       finished_at: null,
       current_chapter_estimate_seconds: 4060,
       rest_of_book_estimate_seconds: 11507,
@@ -71,6 +69,12 @@ function mockFetch() {
               created_at: "2026-06-16T11:30:00Z",
               chapter_progress: 0.4,
               color: 0,
+            },
+          ],
+          dictionary_lookups: [
+            {
+              word: "perspicacious",
+              dictionary: "en",
             },
           ],
         })
@@ -183,6 +187,9 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).getByText("4h 19m")).toBeVisible()
   expect(within(dialog).getByText("1h 7m")).toBeVisible()
   expect(within(dialog).getByText("3h 11m")).toBeVisible()
+  expect(within(dialog).queryByText(/Reading sessions/)).not.toBeInTheDocument()
+  expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
+  expect(within(dialog).getByText("perspicacious")).toBeVisible()
 })
 
 test("suppresses unavailable remaining time", async () => {
@@ -229,6 +236,7 @@ test("suppresses unavailable remaining time", async () => {
           current_chapter_estimate_seconds: 0,
           rest_of_book_estimate_seconds: 0,
           bookmarks: [],
+          dictionary_lookups: [],
         })
       }
       throw new Error(`Unhandled request: ${url}`)
@@ -276,6 +284,7 @@ test("shows unavailable chapter estimate as a dash", async () => {
           rest_of_book_estimate_seconds: 11507,
           remaining_seconds: 11507,
           bookmarks: [],
+          dictionary_lookups: [],
         })
       }
       throw new Error(`Unhandled request: ${url}`)

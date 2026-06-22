@@ -14,9 +14,7 @@ export interface Book {
   status: ReadingStatus
   reading_seconds: number
   percent_read: number
-  times_started: number
   date_last_read: string | null
-  last_started_at: string | null
   finished_at: string | null
   current_chapter_estimate_seconds: number
   rest_of_book_estimate_seconds: number
@@ -40,8 +38,14 @@ export interface Bookmark {
   color: number
 }
 
+export interface DictionaryLookup {
+  word: string
+  dictionary: string | null
+}
+
 export interface BookDetail extends Book {
   bookmarks: Bookmark[]
+  dictionary_lookups: DictionaryLookup[]
 }
 
 export interface DashboardData {

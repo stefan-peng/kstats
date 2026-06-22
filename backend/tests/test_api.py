@@ -145,6 +145,13 @@ def test_book_detail_includes_visible_highlights(client):
             "color": 0,
         }
     ]
+    assert "reading_sessions" not in payload
+    assert payload["dictionary_lookups"] == [
+        {
+            "word": "perspicacious",
+            "dictionary": "en",
+        },
+    ]
 
 
 def test_finished_book_suppresses_stale_reading_estimates(client):

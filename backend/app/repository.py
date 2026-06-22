@@ -5,6 +5,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from .kobo_events import (
+    DICTIONARY_EVENT_TYPE,
+    EventDecodeError,
+    decode_event_payload,
+    parse_dictionary_event,
+)
 
 BOOK_MIME_TYPES = (
     "application/x-kobo-epub+zip",
@@ -20,9 +26,7 @@ SELECT
     COALESCE(ReadStatus, 0) AS read_status,
     MAX(COALESCE(TimeSpentReading, 0), 0) AS reading_seconds,
     MIN(MAX(COALESCE(___PercentRead, 0), 0), 100) AS percent_read,
-    MAX(COALESCE(TimesStartedReading, 0), 0) AS times_started,
     DateLastRead AS date_last_read,
-    LastTimeStartedReading AS last_started_at,
     LastTimeFinishedReading AS finished_at,
     CASE
         WHEN COALESCE(ReadStatus, 0) = 1
@@ -260,6 +264,40 @@ class Repository:
                 """,
                 [content_id],
             ).fetchall()
+            dictionary_lookups: dict[tuple[str, str], dict[str, Any]] = {}
+            if connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Event'"
+            ).fetchone():
+                event_rows = connection.execute(
+                    """
+                    SELECT EventType, EventCount, LastOccurrence,
+                           CAST(ExtraData AS BLOB) AS ExtraData
+                    FROM Event
+                    WHERE ContentID = ? AND EventType = ?
+                    ORDER BY LastOccurrence DESC
+                    """,
+                    [content_id, DICTIONARY_EVENT_TYPE],
+                ).fetchall()
+                for event_row in event_rows:
+                    try:
+                        payload = decode_event_payload(event_row["ExtraData"])
+                    except (EventDecodeError, TypeError):
+                        continue
+                    lookup = parse_dictionary_event(payload)
+                    if lookup is None:
+                        continue
+                    key = (
+                        lookup["word"].casefold(),
+                        (lookup["dictionary"] or "").casefold(),
+                    )
+                    dictionary_lookups.setdefault(key, lookup)
         book = serialize_book(row)
         book["bookmarks"] = [dict(item) for item in bookmark_rows]
+        book["dictionary_lookups"] = sorted(
+            dictionary_lookups.values(),
+            key=lambda lookup: (
+                lookup["word"].casefold(),
+                (lookup["dictionary"] or "").casefold(),
+            ),
+        )
         return book

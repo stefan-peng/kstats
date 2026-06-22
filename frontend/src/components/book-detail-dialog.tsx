@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Clock3,
   Highlighter,
+  Languages,
   Timer,
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -25,7 +26,11 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
-import { formatDate, formatDuration, formatNumber } from "@/lib/format"
+import {
+  formatDate,
+  formatDuration,
+  formatNumber,
+} from "@/lib/format"
 import type { BookDetail } from "@/types"
 import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
@@ -171,6 +176,36 @@ export function BookDetailDialog({
                 <>
                   <Separator />
                   <FormattedText>{book.description}</FormattedText>
+                </>
+              )}
+
+              {book.dictionary_lookups.length > 0 && (
+                <>
+                  <Separator />
+                  <section className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <Languages className="size-4 text-primary" />
+                      <h3 className="font-medium">
+                        Dictionary lookups ({book.dictionary_lookups.length})
+                      </h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {book.dictionary_lookups.map((lookup) => (
+                        <Badge
+                          key={`${lookup.word}-${lookup.dictionary ?? ""}`}
+                          variant="secondary"
+                          className="gap-1.5"
+                        >
+                          {lookup.word}
+                          {lookup.dictionary && (
+                            <span className="text-muted-foreground">
+                              {lookup.dictionary}
+                            </span>
+                          )}
+                        </Badge>
+                      ))}
+                    </div>
+                  </section>
                 </>
               )}
 
