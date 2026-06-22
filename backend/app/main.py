@@ -53,6 +53,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         search: str | None = None,
         status: str | None = None,
         downloaded: bool | None = None,
+        finished_month: str | None = Query(
+            None,
+            pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
+        ),
         sort: str = "last_read",
         direction: str = "desc",
         repo: Repository = Depends(repository),
@@ -64,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 search=search,
                 status=status,
                 downloaded=downloaded,
+                finished_month=finished_month,
                 sort=sort,
                 direction=direction,
             )

@@ -170,6 +170,48 @@ test("supports library search and sortable headers on the dashboard", async () =
   })
 })
 
+test("filters the embedded library from a selected completion month", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+
+  const [statusFilter] = await screen.findAllByRole("combobox")
+  await user.click(statusFilter)
+  await user.click(screen.getByRole("option", { name: "In progress" }))
+  await waitFor(() => {
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("status=reading"),
+      undefined,
+    )
+  })
+
+  const month = await screen.findByRole("button", {
+    name: "May 2026, 1 book completed",
+  })
+  await user.click(month)
+
+  expect(screen.getByText("Finished in May 2026")).toBeVisible()
+  expect(statusFilter).toHaveTextContent("All statuses")
+  await waitFor(() => {
+    const bookRequests = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/books"))
+    expect(bookRequests.at(-1)).toContain("finished_month=2026-05")
+    expect(bookRequests.at(-1)).toContain("status=all")
+  })
+
+  await user.click(statusFilter)
+  await user.click(screen.getByRole("option", { name: "Unread" }))
+  expect(screen.queryByText("Finished in May 2026")).not.toBeInTheDocument()
+  expect(statusFilter).toHaveTextContent("Unread")
+  await waitFor(() => {
+    const bookRequests = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/books"))
+    expect(bookRequests.at(-1)).not.toContain("finished_month")
+    expect(bookRequests.at(-1)).toContain("status=unread")
+  })
+})
+
 test("opens book details from the embedded library", async () => {
   const user = userEvent.setup()
   render(<App />)

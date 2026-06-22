@@ -24,6 +24,14 @@ export function formatMonth(value: string): string {
   )
 }
 
+export function formatMonthYear(value: string): string {
+  const [year, month] = value.split("-").map(Number)
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1))
+}
+
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value)
 }

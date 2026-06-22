@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   BookCheck,
   BookOpenText,
@@ -29,7 +30,13 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatDate, formatDuration, formatMonth, formatNumber } from "@/lib/format"
+import {
+  formatDate,
+  formatDuration,
+  formatMonth,
+  formatMonthYear,
+  formatNumber,
+} from "@/lib/format"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { LibrarySection } from "./library-page"
 
@@ -50,6 +57,8 @@ export function OverviewPage({
   onRefresh: () => void
   onOpenBook: (contentId: string) => void
 }) {
+  const [finishedMonth, setFinishedMonth] = useState<string | null>(null)
+
   if (loading) {
     return <OverviewSkeleton />
   }
@@ -249,7 +258,30 @@ export function OverviewPage({
                       radius={[5, 5, 0, 0]}
                       maxBarSize={24}
                       isAnimationActive={false}
-                    />
+                    >
+                      {dashboard.monthly_completions.map((entry) => (
+                        <Cell
+                          key={entry.month}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${formatMonthYear(entry.month)}, ${formatNumber(entry.count)} ${entry.count === 1 ? "book" : "books"} completed`}
+                          aria-pressed={finishedMonth === entry.month}
+                          className="cursor-pointer outline-none focus-visible:stroke-ring focus-visible:stroke-2"
+                          fill={
+                            finishedMonth === entry.month
+                              ? "var(--primary)"
+                              : "var(--chart-1)"
+                          }
+                          onClick={() => setFinishedMonth(entry.month)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault()
+                              setFinishedMonth(entry.month)
+                            }
+                          }}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -301,6 +333,8 @@ export function OverviewPage({
       <LibrarySection
         onOpenBook={onOpenBook}
         snapshotVersion={device?.imported_at}
+        finishedMonth={finishedMonth}
+        onClearFinishedMonth={() => setFinishedMonth(null)}
       />
     </main>
   )

@@ -180,6 +180,7 @@ class Repository:
         search: str | None,
         status: str | None,
         downloaded: bool | None,
+        finished_month: str | None,
         sort: str,
         direction: str,
     ) -> dict[str, Any]:
@@ -206,6 +207,12 @@ class Repository:
             filters.append(
                 downloaded_expression if downloaded else f"NOT ({downloaded_expression})"
             )
+        if finished_month:
+            filters.append(
+                "COALESCE(ReadStatus, 0) = 2 "
+                "AND substr(LastTimeFinishedReading, 1, 7) = ?"
+            )
+            parameters.append(finished_month)
 
         sort_columns = {
             "title": "title",

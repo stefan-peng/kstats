@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  X,
   Search,
 } from "lucide-react"
 import {
@@ -35,8 +36,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import { api } from "@/lib/api"
-import { formatDate, formatDuration, formatNumber } from "@/lib/format"
+import {
+  formatDate,
+  formatDuration,
+  formatMonthYear,
+  formatNumber,
+} from "@/lib/format"
 import type { Book, BooksResponse } from "@/types"
 import { StatusBadge } from "./status-badge"
 
@@ -45,9 +52,13 @@ const helper = createColumnHelper<Book>()
 export function LibrarySection({
   onOpenBook,
   snapshotVersion,
+  finishedMonth,
+  onClearFinishedMonth,
 }: {
   onOpenBook: (contentId: string) => void
   snapshotVersion: string | null | undefined
+  finishedMonth: string | null
+  onClearFinishedMonth: () => void
 }) {
   const [data, setData] = useState<BooksResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -70,10 +81,15 @@ export function LibrarySection({
   }, [search])
 
   useEffect(() => {
+    setPage(1)
+    if (finishedMonth) setStatus("all")
+  }, [finishedMonth])
+
+  useEffect(() => {
     const query = new URLSearchParams({
       page: String(page),
       page_size: "20",
-      status,
+      status: finishedMonth ? "all" : status,
       sort: sorting[0]?.id ?? "last_read",
       direction: sorting[0]?.desc ? "desc" : "asc",
     })
@@ -81,6 +97,7 @@ export function LibrarySection({
     if (availability !== "all") {
       query.set("downloaded", availability === "downloaded" ? "true" : "false")
     }
+    if (finishedMonth) query.set("finished_month", finishedMonth)
     let active = true
     setLoading(true)
     setError(null)
@@ -92,7 +109,15 @@ export function LibrarySection({
     return () => {
       active = false
     }
-  }, [availability, debouncedSearch, page, snapshotVersion, sorting, status])
+  }, [
+    availability,
+    debouncedSearch,
+    finishedMonth,
+    page,
+    snapshotVersion,
+    sorting,
+    status,
+  ])
 
   const columns = useMemo(
     () => [
@@ -168,6 +193,21 @@ export function LibrarySection({
         <p className="mt-2 text-muted-foreground">
           Search and sort every book in your native Kobo library.
         </p>
+        {finishedMonth ? (
+          <div className="mt-3 flex items-center gap-2">
+            <Badge variant="secondary">
+              Finished in {formatMonthYear(finishedMonth)}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearFinishedMonth}
+            >
+              <X data-icon="inline-start" />
+              Clear month
+            </Button>
+          </div>
+        ) : null}
       </header>
 
       <div className="flex flex-col gap-3 md:flex-row">
@@ -182,6 +222,7 @@ export function LibrarySection({
           />
         </div>
         <Select value={status} onValueChange={(value) => {
+          if (finishedMonth) onClearFinishedMonth()
           setStatus(value)
           setPage(1)
         }}>

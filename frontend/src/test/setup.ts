@@ -14,6 +14,21 @@ Object.defineProperty(window, "matchMedia", {
   }),
 })
 
+Object.defineProperties(Element.prototype, {
+  hasPointerCapture: {
+    value: () => false,
+  },
+  releasePointerCapture: {
+    value: () => undefined,
+  },
+  scrollIntoView: {
+    value: () => undefined,
+  },
+  setPointerCapture: {
+    value: () => undefined,
+  },
+})
+
 globalThis.ResizeObserver = class ResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
 

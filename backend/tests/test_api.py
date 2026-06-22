@@ -65,6 +65,15 @@ def test_books_support_search_filters_and_sorting(client):
     assert payload["items"][0]["downloaded"] is True
 
 
+def test_books_filter_by_finished_month(client):
+    response = client.get("/api/books", params={"finished_month": "2026-05"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [book["content_id"] for book in payload["items"]] == ["book-finished"]
+
+
 def test_books_sort_by_in_progress_remaining_time(client):
     response = client.get(
         "/api/books",
