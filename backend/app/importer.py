@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -30,15 +31,17 @@ def import_database(settings: Settings) -> dict[str, str | bool | None]:
     temporary.unlink(missing_ok=True)
 
     try:
-        source_uri = f"file:{source}?mode=ro"
-        with sqlite3.connect(source_uri, uri=True) as source_connection:
-            with sqlite3.connect(temporary) as destination_connection:
-                source_connection.backup(destination_connection)
-                integrity = destination_connection.execute(
-                    "PRAGMA integrity_check"
-                ).fetchone()
-                if not integrity or integrity[0] != "ok":
-                    raise ImportError("Imported database failed its integrity check")
+        source_uri = f"{source.resolve().as_uri()}?mode=ro"
+        with (
+            closing(sqlite3.connect(source_uri, uri=True)) as source_connection,
+            closing(sqlite3.connect(temporary)) as destination_connection,
+        ):
+            source_connection.backup(destination_connection)
+            integrity = destination_connection.execute(
+                "PRAGMA integrity_check"
+            ).fetchone()
+            if not integrity or integrity[0] != "ok":
+                raise ImportError("Imported database failed its integrity check")
         os.replace(temporary, settings.snapshot_db)
     except (OSError, sqlite3.Error) as error:
         temporary.unlink(missing_ok=True)

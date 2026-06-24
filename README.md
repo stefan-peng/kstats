@@ -7,17 +7,27 @@ highlights.
 
 ## Run
 
-Connect the Kobo at `/Volumes/KOBOeReader`, then run:
+Connect the Kobo, then run:
 
 ```bash
 uv sync
-npm install --prefix frontend
+npm ci --prefix frontend
 npm run build --prefix frontend
 uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Open <http://127.0.0.1:8000>. The last successful snapshot remains available
 after the reader is disconnected.
+
+The app auto-detects the Kobo database at `/Volumes/KOBOeReader` on macOS and
+at the `.kobo` folder on mounted Windows drive letters. If your reader is
+mounted elsewhere, set `KSTATS_KOBO_DATABASE` to the full `KoboReader.sqlite`
+path before starting the server:
+
+```powershell
+$env:KSTATS_KOBO_DATABASE = "E:\.kobo\KoboReader.sqlite"
+uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
 
 ## Validate
 
