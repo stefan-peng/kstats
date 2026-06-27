@@ -42,20 +42,38 @@ export function BookDetailDialog({
   contentId: string | null
   onOpenChange: (open: boolean) => void
 }) {
-  const [book, setBook] = useState<BookDetail | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [bookResult, setBookResult] = useState<{
+    contentId: string
+    book: BookDetail
+  } | null>(null)
+  const [errorResult, setErrorResult] = useState<{
+    contentId: string
+    message: string
+  } | null>(null)
+  const book = bookResult?.contentId === contentId ? bookResult.book : null
+  const error = errorResult?.contentId === contentId ? errorResult.message : null
 
   useEffect(() => {
     if (!contentId) {
-      setBook(null)
-      setError(null)
+      setBookResult(null)
+      setErrorResult(null)
       return
     }
     let active = true
+    setBookResult(null)
+    setErrorResult(null)
     api
       .book(contentId)
-      .then((data) => active && setBook(data))
-      .catch((reason: Error) => active && setError(reason.message))
+      .then((data) => {
+        if (!active) return
+        setBookResult({ contentId, book: data })
+        setErrorResult(null)
+      })
+      .catch((reason: Error) => {
+        if (!active) return
+        setBookResult(null)
+        setErrorResult({ contentId, message: reason.message })
+      })
     return () => {
       active = false
     }

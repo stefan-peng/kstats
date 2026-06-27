@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import App from "./App"
+import { BookDetailDialog } from "./components/book-detail-dialog"
 
 const dashboard = {
   totals: { library: 3, finished: 1, reading: 1, reading_seconds: 10861 },
@@ -30,6 +31,15 @@ const dashboard = {
     },
   ],
   top_books: [],
+}
+
+function bookDetail(overrides = {}) {
+  return {
+    ...dashboard.continue_reading[0],
+    bookmarks: [],
+    dictionary_lookups: [],
+    ...overrides,
+  }
 }
 
 function mockFetch() {
@@ -232,6 +242,93 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).queryByText(/Reading sessions/)).not.toBeInTheDocument()
   expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
+})
+
+test("clears stale book details when opening a different book", async () => {
+  let resolveSecondBook: (response: Response) => void = () => {}
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("content_id=book-1")) {
+        return Promise.resolve(
+          Response.json(bookDetail({ content_id: "book-1", title: "First Book" })),
+        )
+      }
+      if (url.includes("content_id=book-2")) {
+        return new Promise<Response>((resolve) => {
+          resolveSecondBook = resolve
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const onOpenChange = vi.fn()
+  const { rerender } = render(
+    <BookDetailDialog contentId="book-1" onOpenChange={onOpenChange} />,
+  )
+
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByRole("heading", { name: "First Book" })).toBeVisible()
+
+  rerender(<BookDetailDialog contentId="book-2" onOpenChange={onOpenChange} />)
+  expect(
+    within(screen.getByRole("dialog")).queryByRole("heading", { name: "First Book" }),
+  ).not.toBeInTheDocument()
+
+  resolveSecondBook(
+    Response.json(bookDetail({ content_id: "book-2", title: "Second Book" })),
+  )
+  expect(
+    await within(screen.getByRole("dialog")).findByRole("heading", {
+      name: "Second Book",
+    }),
+  ).toBeVisible()
+})
+
+test("clears stale book detail errors before retry content loads", async () => {
+  let resolveRetry: (response: Response) => void = () => {}
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("content_id=failed-book")) {
+        return Promise.resolve(
+          Response.json({ detail: "Backend down" }, { status: 500 }),
+        )
+      }
+      if (url.includes("content_id=recovered-book")) {
+        return new Promise<Response>((resolve) => {
+          resolveRetry = resolve
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const onOpenChange = vi.fn()
+  const { rerender } = render(
+    <BookDetailDialog contentId="failed-book" onOpenChange={onOpenChange} />,
+  )
+
+  expect(await screen.findByText("Backend down")).toBeVisible()
+
+  rerender(
+    <BookDetailDialog contentId="recovered-book" onOpenChange={onOpenChange} />,
+  )
+  expect(screen.queryByText("Backend down")).not.toBeInTheDocument()
+
+  resolveRetry(
+    Response.json(
+      bookDetail({ content_id: "recovered-book", title: "Recovered Book" }),
+    ),
+  )
+  expect(
+    await within(screen.getByRole("dialog")).findByRole("heading", {
+      name: "Recovered Book",
+    }),
+  ).toBeVisible()
 })
 
 test("suppresses unavailable remaining time", async () => {
