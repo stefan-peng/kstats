@@ -43,6 +43,9 @@ def import_database(settings: Settings) -> dict[str, str | bool | None]:
             if not integrity or integrity[0] != "ok":
                 raise ImportError("Imported database failed its integrity check")
         os.replace(temporary, settings.snapshot_db)
+    except ImportError:
+        temporary.unlink(missing_ok=True)
+        raise
     except (OSError, sqlite3.Error) as error:
         temporary.unlink(missing_ok=True)
         raise ImportError(f"Unable to import Kobo database: {error}") from error
@@ -73,4 +76,3 @@ def device_status(settings: Settings) -> dict[str, str | bool | None]:
         "imported_at": metadata["imported_at"],
         "source": metadata["source"],
     }
-

@@ -44,6 +44,15 @@ def test_windows_source_database_falls_back_to_first_candidate(tmp_path):
     )
 
 
+def test_windows_source_database_rejects_empty_drive_roots():
+    try:
+        default_source_db({}, system="Windows", windows_drive_roots=[])
+    except RuntimeError as error:
+        assert str(error) == "No Kobo database candidates are configured"
+    else:
+        raise AssertionError("Expected empty drive roots to fail explicitly")
+
+
 def test_macos_source_database_candidate_keeps_existing_default():
     assert kobo_database_candidates("Darwin") == [
         Path("/Volumes/KOBOeReader/.kobo/KoboReader.sqlite")

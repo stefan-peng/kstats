@@ -1,5 +1,8 @@
 import sqlite3
 
+import pytest
+
+from backend.app.importer import ImportError as KoboImportError
 from backend.app.importer import import_database
 
 
@@ -187,3 +190,39 @@ def test_failed_import_keeps_previous_snapshot(settings):
     with sqlite3.connect(settings.snapshot_db) as connection:
         after = connection.execute("SELECT COUNT(*) FROM content").fetchone()[0]
     assert before == after == 4
+
+
+def test_failed_integrity_import_removes_temporary_snapshot(settings, monkeypatch):
+    class SourceConnection:
+        def backup(self, destination):
+            pass
+
+        def close(self):
+            pass
+
+    class DestinationConnection:
+        def __init__(self, path):
+            self.path = path
+            path.write_text("partial import", encoding="utf-8")
+
+        def execute(self, statement):
+            assert statement == "PRAGMA integrity_check"
+            return self
+
+        def fetchone(self):
+            return ("database disk image is malformed",)
+
+        def close(self):
+            pass
+
+    def connect(database, *args, **kwargs):
+        if isinstance(database, str):
+            return SourceConnection()
+        return DestinationConnection(database)
+
+    monkeypatch.setattr("backend.app.importer.sqlite3.connect", connect)
+
+    with pytest.raises(KoboImportError, match="integrity check"):
+        import_database(settings)
+
+    assert not settings.snapshot_db.with_suffix(".sqlite.tmp").exists()

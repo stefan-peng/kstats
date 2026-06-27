@@ -21,7 +21,11 @@ def kobo_database_candidates(
 ) -> list[Path]:
     current_system = system or platform.system()
     if current_system == "Windows":
-        roots = windows_drive_roots or _windows_drive_roots()
+        roots = (
+            list(windows_drive_roots)
+            if windows_drive_roots is not None
+            else _windows_drive_roots()
+        )
         return [root / KOBO_DATABASE for root in roots]
 
     if current_system == "Darwin":
@@ -55,6 +59,8 @@ def default_source_db(
         system,
         windows_drive_roots=windows_drive_roots,
     )
+    if not candidates:
+        raise RuntimeError("No Kobo database candidates are configured")
     for candidate in candidates:
         if candidate.is_file():
             return candidate
@@ -73,4 +79,3 @@ class Settings:
     @property
     def import_metadata(self) -> Path:
         return self.data_dir / "import.json"
-
