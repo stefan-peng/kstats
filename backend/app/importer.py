@@ -22,7 +22,7 @@ def _write_metadata(path: Path, imported_at: str, source: Path) -> None:
 
 
 def import_database(settings: Settings) -> dict[str, str | bool | None]:
-    source = settings.source_db
+    source = settings.resolve_source_db()
     if not source.is_file():
         raise ImportError(f"Kobo database not found at {source}")
 
@@ -70,8 +70,9 @@ def _metadata(settings: Settings) -> dict[str, str | None]:
 
 def device_status(settings: Settings) -> dict[str, str | bool | None]:
     metadata = _metadata(settings)
+    source = settings.resolve_source_db()
     return {
-        "connected": settings.source_db.is_file(),
+        "connected": source.is_file(),
         "snapshot_available": settings.snapshot_db.is_file(),
         "imported_at": metadata["imported_at"],
         "source": metadata["source"],

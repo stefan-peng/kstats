@@ -1,8 +1,8 @@
 import os
 import platform
 import string
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -69,8 +69,23 @@ def default_source_db(
 
 @dataclass(frozen=True)
 class Settings:
-    source_db: Path = field(default_factory=default_source_db)
+    source_db: Path | None = None
     data_dir: Path = Path(".data")
+    system: str | None = None
+    windows_drive_roots: Iterable[Path] | Callable[[], Iterable[Path]] | None = None
+
+    def resolve_source_db(self) -> Path:
+        if self.source_db is not None:
+            return self.source_db
+
+        windows_drive_roots = self.windows_drive_roots
+        if callable(windows_drive_roots):
+            windows_drive_roots = windows_drive_roots()
+
+        return default_source_db(
+            system=self.system,
+            windows_drive_roots=windows_drive_roots,
+        )
 
     @property
     def snapshot_db(self) -> Path:

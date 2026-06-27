@@ -1,9 +1,12 @@
 import sqlite3
 
 import pytest
+from fastapi.testclient import TestClient
 
+from backend.app.config import Settings
 from backend.app.importer import ImportError as KoboImportError
 from backend.app.importer import import_database
+from backend.app.main import create_app
 
 
 def insert_book(
@@ -226,3 +229,31 @@ def test_failed_integrity_import_removes_temporary_snapshot(settings, monkeypatc
         import_database(settings)
 
     assert not settings.snapshot_db.with_suffix(".sqlite.tmp").exists()
+
+
+def test_status_and_import_rescan_device_candidates_after_startup(tmp_path):
+    drive_c = tmp_path / "C"
+    drive_d = tmp_path / "D"
+    source = drive_d / ".kobo" / "KoboReader.sqlite"
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        system="Windows",
+        windows_drive_roots=lambda: [drive_c, drive_d],
+    )
+
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/device/status").json()["connected"] is False
+
+        source.parent.mkdir(parents=True)
+        sqlite3.connect(source).close()
+
+        status = client.get("/api/device/status").json()
+        assert status["connected"] is True
+        assert status["snapshot_available"] is False
+
+        imported = client.post("/api/import")
+        assert imported.status_code == 200
+        payload = imported.json()
+        assert payload["connected"] is True
+        assert payload["snapshot_available"] is True
+        assert payload["source"] == str(source)

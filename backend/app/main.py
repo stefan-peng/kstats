@@ -15,7 +15,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        if not app_settings.snapshot_db.is_file() and app_settings.source_db.is_file():
+        if (
+            not app_settings.snapshot_db.is_file()
+            and app_settings.resolve_source_db().is_file()
+        ):
             try:
                 import_database(app_settings)
             except ImportError:
