@@ -357,7 +357,9 @@ export function LibrarySection({
 
       <footer className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground">
-          {data ? `${formatNumber(data.total)} books` : "Loading books…"}
+          {data
+            ? `${formatNumber(data.total)} ${data.total === 1 ? "book" : "books"}`
+            : "Loading books…"}
         </p>
         <div className="flex items-center gap-2">
           <span className="mr-2 text-muted-foreground">

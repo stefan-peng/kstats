@@ -30,7 +30,28 @@ const dashboard = {
       mime_type: "application/epub+zip",
     },
   ],
-  top_books: [],
+  top_books: [
+    {
+      content_id: "book-top",
+      title: "Most Read Book",
+      author: "Time Keeper",
+      status: "finished",
+      reading_seconds: 7200,
+      percent_read: 100,
+      date_last_read: "2026-05-20T12:00:00Z",
+      finished_at: "2026-05-20T12:00:00Z",
+      current_chapter_estimate_seconds: 0,
+      rest_of_book_estimate_seconds: 0,
+      remaining_seconds: 0,
+      downloaded: true,
+      word_count: null,
+      series: null,
+      series_number: null,
+      publisher: null,
+      description: null,
+      mime_type: "application/epub+zip",
+    },
+  ],
 }
 
 function bookDetail(overrides = {}) {
@@ -66,6 +87,13 @@ function mockFetch() {
         })
       }
       if (url.includes("/api/book?")) {
+        if (url.includes("content_id=book-top")) {
+          return Response.json({
+            ...dashboard.top_books[0],
+            bookmarks: [],
+            dictionary_lookups: [],
+          })
+        }
         return Response.json({
           ...dashboard.continue_reading[0],
           description:
@@ -114,6 +142,8 @@ test("renders overview metrics from the imported snapshot", async () => {
   expect(screen.getByText("3h 1m")).toBeVisible()
   expect(await screen.findByText("4h 19m")).toBeVisible()
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
+  expect(screen.getByRole("heading", { name: "Most read" })).toBeVisible()
+  expect(screen.getByText("Most Read Book")).toBeVisible()
   expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
   expect(screen.queryByRole("button", { name: "Open navigation" })).not.toBeInTheDocument()
   await waitFor(() => {
@@ -178,6 +208,7 @@ test("supports library search and sortable headers on the dashboard", async () =
       undefined,
     )
   })
+  expect(await screen.findByText("1 book")).toBeVisible()
 })
 
 test("filters the embedded library from a selected completion month", async () => {
@@ -242,6 +273,17 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).queryByText(/Reading sessions/)).not.toBeInTheDocument()
   expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
+})
+
+test("opens book details from the most-read section", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+  const book = await screen.findByText("Most Read Book")
+  await user.click(book)
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByRole("heading", { name: "Most Read Book" })).toBeVisible()
+  expect(within(dialog).getByText("Reading progress")).toBeVisible()
+  expect(within(dialog).getByText("100%")).toBeVisible()
 })
 
 test("clears stale book details when opening a different book", async () => {

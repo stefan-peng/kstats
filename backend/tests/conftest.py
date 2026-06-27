@@ -122,7 +122,7 @@ def create_fixture_database(path: Path) -> None:
                 "B. Author",
                 2,
                 7200,
-                100,
+                0,
                 5,
                 "2026-05-20T12:00:00Z",
                 None,

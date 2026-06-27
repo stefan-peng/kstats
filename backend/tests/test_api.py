@@ -78,6 +78,7 @@ def test_books_filter_by_finished_month(client):
     payload = response.json()
     assert payload["total"] == 1
     assert [book["content_id"] for book in payload["items"]] == ["book-finished"]
+    assert payload["items"][0]["percent_read"] == 100
 
 
 def test_books_sort_by_in_progress_remaining_time(client):
@@ -174,6 +175,7 @@ def test_finished_book_suppresses_stale_reading_estimates(client):
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["percent_read"] == 100
     assert payload["current_chapter_estimate_seconds"] == 0
     assert payload["rest_of_book_estimate_seconds"] == 0
     assert payload["remaining_seconds"] == 0

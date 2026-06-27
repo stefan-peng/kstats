@@ -328,6 +328,51 @@ export function OverviewPage({
         )}
       </section>
 
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="font-serif text-2xl font-semibold">Most read</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Books with the most tracked reading time.
+          </p>
+        </div>
+        {dashboard.top_books.length === 0 ? (
+          <p className="rounded-lg border p-6 text-sm text-muted-foreground">
+            No reading time has been tracked yet.
+          </p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {dashboard.top_books.map((book) => (
+              <Card
+                key={book.content_id}
+                className="cursor-pointer transition-colors hover:bg-accent/30"
+                onClick={() => onOpenBook(book.content_id)}
+              >
+                <CardHeader>
+                  <CardTitle className="line-clamp-2 font-serif text-lg">
+                    {book.title}
+                  </CardTitle>
+                  <CardDescription className="line-clamp-1">
+                    {book.author}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">Reading time</span>
+                    <span className="font-medium">
+                      {formatDuration(book.reading_seconds)}
+                    </span>
+                  </div>
+                  <Progress value={book.percent_read} />
+                  <div className="text-xs text-muted-foreground">
+                    {book.percent_read}% complete
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
       <Separator />
 
       <LibrarySection

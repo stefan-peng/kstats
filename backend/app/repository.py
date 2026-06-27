@@ -63,6 +63,8 @@ def status_name(value: int) -> str:
 def serialize_book(row: sqlite3.Row) -> dict[str, Any]:
     book = dict(row)
     book["status"] = status_name(book.pop("read_status"))
+    if book["status"] == "finished":
+        book["percent_read"] = 100
     book["downloaded"] = bool(book["downloaded"])
     return book
 
