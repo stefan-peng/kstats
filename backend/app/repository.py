@@ -12,58 +12,34 @@ from .kobo_events import (
     decode_event_payload,
     parse_dictionary_event,
 )
-
-BOOK_MIME_TYPES = (
-    "application/x-kobo-epub+zip",
-    "application/epub+zip",
-    "application/pdf",
-)
+from .source_processing import SourceType, ensure_derived_tables
 
 BOOK_SELECT = """
 SELECT
-    ContentID AS content_id,
-    COALESCE(NULLIF(Title, ''), NULLIF(BookTitle, ''), 'Untitled') AS title,
-    COALESCE(NULLIF(Attribution, ''), 'Unknown author') AS author,
-    COALESCE(ReadStatus, 0) AS read_status,
-    MAX(COALESCE(TimeSpentReading, 0), 0) AS reading_seconds,
-    MIN(MAX(COALESCE(___PercentRead, 0), 0), 100) AS percent_read,
-    DateLastRead AS date_last_read,
-    LastTimeFinishedReading AS finished_at,
-    CASE
-        WHEN COALESCE(ReadStatus, 0) = 1
-        THEN MAX(COALESCE(CurrentChapterEstimate, 0), 0)
-        ELSE 0
-    END AS current_chapter_estimate_seconds,
-    CASE
-        WHEN COALESCE(ReadStatus, 0) = 1
-        THEN MAX(COALESCE(RestOfBookEstimate, 0), 0)
-        ELSE 0
-    END AS rest_of_book_estimate_seconds,
-    CASE
-        WHEN COALESCE(ReadStatus, 0) = 1
-        THEN MAX(COALESCE(CurrentChapterEstimate, 0), 0)
-            + MAX(COALESCE(RestOfBookEstimate, 0), 0)
-        ELSE 0
-    END AS remaining_seconds,
-    CASE WHEN lower(CAST(IsDownloaded AS TEXT)) IN ('1', 'true') THEN 1 ELSE 0 END
-        AS downloaded,
-    CASE WHEN COALESCE(WordCount, -1) > 0 THEN WordCount ELSE NULL END AS word_count,
-    NULLIF(Series, '') AS series,
-    NULLIF(SeriesNumber, '') AS series_number,
-    NULLIF(Publisher, '') AS publisher,
-    NULLIF(Description, '') AS description,
-    NULLIF(Language, '') AS language,
-    NULLIF(ISBN, '') AS isbn,
-    NULLIF(ImageId, '') AS image_id,
-    MimeType AS mime_type,
-    (
-        SELECT COUNT(*)
-        FROM Bookmark
-        WHERE VolumeID = content.ContentID
-          AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT)))
-              IN ('0', 'false')
-    ) AS bookmark_count
-FROM content
+    content_id,
+    title,
+    author,
+    read_status,
+    reading_seconds,
+    percent_read,
+    date_last_read,
+    finished_at,
+    current_chapter_estimate_seconds,
+    rest_of_book_estimate_seconds,
+    remaining_seconds,
+    downloaded,
+    word_count,
+    series,
+    series_number,
+    publisher,
+    description,
+    language,
+    isbn,
+    image_id,
+    mime_type,
+    source_type,
+    bookmark_count
+FROM kstats_books
 """
 
 
@@ -95,83 +71,81 @@ class Repository:
     def connect(self) -> Iterator[sqlite3.Connection]:
         if not self.database.is_file():
             raise FileNotFoundError("No Kobo snapshot is available")
-        connection = sqlite3.connect(
-            f"file:{self.database}?mode=ro", uri=True, check_same_thread=False
-        )
+        connection = sqlite3.connect(self.database, check_same_thread=False)
         connection.row_factory = sqlite3.Row
         try:
+            ensure_derived_tables(connection)
             yield connection
         finally:
             connection.close()
 
     @staticmethod
-    def _book_filter(alias: str = "") -> tuple[str, list[str]]:
-        prefix = f"{alias}." if alias else ""
-        placeholders = ",".join("?" for _ in BOOK_MIME_TYPES)
-        return (
-            f"{prefix}ContentType = 6 AND {prefix}MimeType IN ({placeholders})",
-            list(BOOK_MIME_TYPES),
-        )
+    def _source_summary(connection: sqlite3.Connection) -> dict[str, int]:
+        row = connection.execute("SELECT * FROM kstats_source_summary").fetchone()
+        if row is None:
+            return {
+                "kept_kobo_store": 0,
+                "kept_sideloaded": 0,
+                "ignored_custom_catalog": 0,
+                "removed_with_activity": 0,
+                "merged_removed_history": 0,
+            }
+        return {key: int(row[key] or 0) for key in row.keys()}
 
     def dashboard(self) -> dict[str, Any]:
-        where, parameters = self._book_filter()
         with self.connect() as connection:
             totals = connection.execute(
-                f"""
+                """
                 SELECT
                     COUNT(*) AS library,
-                    SUM(CASE WHEN ReadStatus = 2 THEN 1 ELSE 0 END) AS finished,
-                    SUM(CASE WHEN ReadStatus = 1 THEN 1 ELSE 0 END) AS reading,
-                    SUM(MAX(COALESCE(TimeSpentReading, 0), 0)) AS reading_seconds
-                FROM content WHERE {where}
-                """,
-                parameters,
+                    SUM(CASE WHEN read_status = 2 THEN 1 ELSE 0 END) AS finished,
+                    SUM(CASE WHEN read_status = 1 THEN 1 ELSE 0 END) AS reading,
+                    SUM(reading_seconds) AS reading_seconds
+                FROM kstats_books
+                """
             ).fetchone()
 
             status_rows = connection.execute(
-                f"""
-                SELECT COALESCE(ReadStatus, 0) AS status, COUNT(*) AS count
-                FROM content WHERE {where}
-                GROUP BY COALESCE(ReadStatus, 0)
+                """
+                SELECT read_status AS status, COUNT(*) AS count
+                FROM kstats_books
+                GROUP BY read_status
                 ORDER BY status
-                """,
-                parameters,
+                """
             ).fetchall()
 
             monthly_rows = connection.execute(
-                f"""
-                SELECT substr(LastTimeFinishedReading, 1, 7) AS month, COUNT(*) AS count
-                FROM content
-                WHERE {where}
-                    AND ReadStatus = 2
-                    AND LastTimeFinishedReading IS NOT NULL
-                    AND length(LastTimeFinishedReading) >= 7
+                """
+                SELECT substr(finished_at, 1, 7) AS month, COUNT(*) AS count
+                FROM kstats_books
+                WHERE read_status = 2
+                    AND finished_at IS NOT NULL
+                    AND length(finished_at) >= 7
                 GROUP BY month
                 ORDER BY month DESC
                 LIMIT 12
-                """,
-                parameters,
+                """
             ).fetchall()
 
             continue_rows = connection.execute(
                 f"""
                 {BOOK_SELECT}
-                WHERE {where} AND ReadStatus = 1
-                ORDER BY DateLastRead DESC, title
+                WHERE read_status = 1
+                ORDER BY date_last_read DESC, title
                 LIMIT 6
-                """,
-                parameters,
+                """
             ).fetchall()
 
             top_rows = connection.execute(
                 f"""
                 {BOOK_SELECT}
-                WHERE {where} AND COALESCE(TimeSpentReading, 0) > 0
+                WHERE reading_seconds > 0
                 ORDER BY reading_seconds DESC
                 LIMIT 5
-                """,
-                parameters,
+                """
             ).fetchall()
+
+            source_summary = self._source_summary(connection)
 
         status_counts = {"unread": 0, "reading": 0, "finished": 0}
         for row in status_rows:
@@ -184,6 +158,7 @@ class Repository:
                 "reading": totals["reading"] or 0,
                 "reading_seconds": totals["reading_seconds"] or 0,
             },
+            "source_summary": source_summary,
             "status_counts": status_counts,
             "monthly_completions": [
                 dict(row) for row in reversed(monthly_rows) if row["month"]
@@ -201,6 +176,7 @@ class Repository:
         page_size: int,
         search: str | None,
         status: str | None,
+        source: SourceType | None,
         downloaded: bool | None,
         has_highlights: bool | None,
         finished_month: str | None,
@@ -210,54 +186,37 @@ class Repository:
         sort: str,
         direction: str,
     ) -> dict[str, Any]:
-        base_filter, parameters = self._book_filter()
-        filters = [base_filter]
+        filters: list[str] = []
+        parameters: list[Any] = []
         if search:
-            filters.append(
-                "("
-                "COALESCE(NULLIF(Title, ''), NULLIF(BookTitle, ''), '') LIKE ? "
-                "OR COALESCE(Attribution, '') LIKE ?"
-                ")"
-            )
+            filters.append("(title LIKE ? OR author LIKE ?)")
             term = f"%{search}%"
             parameters.extend([term, term])
         if status and status != "all":
             value = {"unread": 0, "reading": 1, "finished": 2}.get(status)
             if value is not None:
-                filters.append("COALESCE(ReadStatus, 0) = ?")
+                filters.append("read_status = ?")
                 parameters.append(value)
+        if source in ("kobo_store", "sideloaded"):
+            filters.append("source_type = ?")
+            parameters.append(source)
         if downloaded is not None:
-            downloaded_expression = (
-                "lower(COALESCE(CAST(IsDownloaded AS TEXT), '')) IN ('1', 'true')"
-            )
-            filters.append(
-                downloaded_expression if downloaded else f"NOT ({downloaded_expression})"
-            )
+            filters.append("downloaded = ?")
+            parameters.append(1 if downloaded else 0)
         if finished_month:
-            filters.append(
-                "COALESCE(ReadStatus, 0) = 2 "
-                "AND substr(LastTimeFinishedReading, 1, 7) = ?"
-            )
+            filters.append("read_status = 2")
+            filters.append("substr(finished_at, 1, 7) = ?")
             parameters.append(finished_month)
         if has_highlights is not None:
-            bookmark_exists = """
-            EXISTS (
-                SELECT 1
-                FROM Bookmark
-                WHERE VolumeID = content.ContentID
-                  AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT)))
-                      IN ('0', 'false')
-            )
-            """
-            filters.append(bookmark_exists if has_highlights else f"NOT {bookmark_exists}")
+            filters.append("bookmark_count > 0" if has_highlights else "bookmark_count = 0")
         if series:
-            filters.append("NULLIF(Series, '') = ?")
+            filters.append("series = ?")
             parameters.append(series)
         if publisher:
-            filters.append("NULLIF(Publisher, '') = ?")
+            filters.append("publisher = ?")
             parameters.append(publisher)
         if language:
-            filters.append("NULLIF(Language, '') = ?")
+            filters.append("language = ?")
             parameters.append(language)
 
         sort_columns = {
@@ -268,24 +227,26 @@ class Repository:
             "reading_time": "reading_seconds",
             "remaining_time": "remaining_seconds",
             "last_read": "date_last_read",
+            "source": "source_type",
         }
         sort_column = sort_columns.get(sort, "date_last_read")
         sort_direction = "ASC" if direction == "asc" else "DESC"
-        where = " AND ".join(filters)
+        where = f"WHERE {' AND '.join(filters)}" if filters else ""
 
         with self.connect() as connection:
             total = connection.execute(
-                f"SELECT COUNT(*) FROM content WHERE {where}", parameters
+                f"SELECT COUNT(*) FROM kstats_books {where}", parameters
             ).fetchone()[0]
             rows = connection.execute(
                 f"""
                 {BOOK_SELECT}
-                WHERE {where}
+                {where}
                 ORDER BY {sort_column} IS NULL, {sort_column} {sort_direction}, title ASC
                 LIMIT ? OFFSET ?
                 """,
                 [*parameters, page_size, (page - 1) * page_size],
             ).fetchall()
+            source_summary = self._source_summary(connection)
 
         return {
             "items": [serialize_book(row, self.covers_dir) for row in rows],
@@ -294,36 +255,34 @@ class Repository:
             "total": total,
             "pages": max(1, math.ceil(total / page_size)),
             "filter_options": self.filter_options(),
+            "source_summary": source_summary,
         }
 
     def filter_options(self) -> dict[str, list[str]]:
-        where, parameters = self._book_filter()
         with self.connect() as connection:
             options: dict[str, list[str]] = {}
             for key, column in {
-                "series": "Series",
-                "publishers": "Publisher",
-                "languages": "Language",
+                "series": "series",
+                "publishers": "publisher",
+                "languages": "language",
             }.items():
                 rows = connection.execute(
                     f"""
-                    SELECT DISTINCT NULLIF({column}, '') AS value
-                    FROM content
-                    WHERE {where} AND NULLIF({column}, '') IS NOT NULL
+                    SELECT DISTINCT {column} AS value
+                    FROM kstats_books
+                    WHERE {column} IS NOT NULL
                     ORDER BY value COLLATE NOCASE
                     LIMIT 200
-                    """,
-                    parameters,
+                    """
                 ).fetchall()
                 options[key] = [row["value"] for row in rows]
         return options
 
     def book(self, content_id: str) -> dict[str, Any] | None:
-        where, parameters = self._book_filter()
         with self.connect() as connection:
             row = connection.execute(
-                f"{BOOK_SELECT} WHERE {where} AND ContentID = ?",
-                [*parameters, content_id],
+                f"{BOOK_SELECT} WHERE content_id = ?",
+                [content_id],
             ).fetchone()
             if row is None:
                 return None

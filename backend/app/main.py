@@ -56,6 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         page_size: int = Query(20, ge=1, le=100),
         search: str | None = None,
         status: str | None = None,
+        source: str | None = None,
         downloaded: bool | None = None,
         has_highlights: bool | None = None,
         finished_month: str | None = Query(
@@ -75,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 page_size=page_size,
                 search=search,
                 status=status,
+                source=source,
                 downloaded=downloaded,
                 has_highlights=has_highlights,
                 finished_month=finished_month,

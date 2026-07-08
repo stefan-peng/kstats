@@ -35,7 +35,8 @@ CREATE TABLE content (
     RestOfBookEstimate INTEGER,
     ImageId TEXT,
     Language TEXT,
-    ISBN TEXT
+    ISBN TEXT,
+    ___UserID TEXT DEFAULT 'test-user'
 );
 CREATE TABLE Bookmark (
     BookmarkID TEXT PRIMARY KEY,
@@ -97,9 +98,9 @@ def create_fixture_database(path: Path) -> None:
             ReadStatus, TimeSpentReading, ___PercentRead, TimesStartedReading,
             DateLastRead, LastTimeStartedReading, LastTimeFinishedReading,
             IsDownloaded, WordCount, Series, SeriesNumber, Publisher, Description,
-            CurrentChapterEstimate, RestOfBookEstimate
+            CurrentChapterEstimate, RestOfBookEstimate, ___UserID
         ) VALUES (
-            ?, 6, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, 6, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         """,
         [
@@ -123,6 +124,7 @@ def create_fixture_database(path: Path) -> None:
                 "Description",
                 4060,
                 11507,
+                "test-user",
             ),
             (
                 "book-finished",
@@ -144,6 +146,7 @@ def create_fixture_database(path: Path) -> None:
                 None,
                 627,
                 6000,
+                "test-user",
             ),
             (
                 "book-cloud",
@@ -165,6 +168,7 @@ def create_fixture_database(path: Path) -> None:
                 None,
                 None,
                 None,
+                "test-user",
             ),
             (
                 "pocket",
@@ -186,6 +190,7 @@ def create_fixture_database(path: Path) -> None:
                 None,
                 None,
                 None,
+                "test-user",
             ),
         ],
     )

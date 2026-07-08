@@ -7,6 +7,13 @@ import { BookDetailDialog } from "./components/book-detail-dialog"
 const dashboard = {
   totals: { library: 3, finished: 1, reading: 1, reading_seconds: 10861 },
   status_counts: { unread: 1, reading: 1, finished: 1 },
+  source_summary: {
+    kept_kobo_store: 3,
+    kept_sideloaded: 0,
+    ignored_custom_catalog: 3375,
+    removed_with_activity: 0,
+    merged_removed_history: 0,
+  },
   monthly_completions: [{ month: "2026-05", count: 1 }],
   continue_reading: [
     {
@@ -30,6 +37,7 @@ const dashboard = {
       isbn: "9780000000001",
       description: null,
       mime_type: "application/epub+zip",
+      source_type: "kobo_store",
       bookmark_count: 1,
       cover_url: "/api/covers/book-1-grid.jpg",
     },
@@ -56,6 +64,7 @@ const dashboard = {
       isbn: null,
       description: null,
       mime_type: "application/epub+zip",
+      source_type: "kobo_store",
       bookmark_count: 0,
       cover_url: null,
     },
@@ -103,6 +112,7 @@ function mockFetch() {
           total: 1,
           pages: 1,
           filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
         })
       }
       if (url.includes("/api/book?")) {
@@ -228,6 +238,7 @@ test("updates Kobo connection status when a disconnected Kobo is rechecked", asy
           total: 1,
           pages: 1,
           filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
         })
       }
       throw new Error(`Unhandled request: ${url}`)
@@ -273,7 +284,7 @@ test("supports library search and sortable headers on the dashboard", async () =
       undefined,
     )
   })
-  expect(await screen.findByText("1 book")).toBeVisible()
+  expect(await screen.findByText(/1 book; 3,375 custom\/catalog rows ignored/)).toBeVisible()
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
   expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
 })
@@ -300,6 +311,15 @@ test("shows active filters and requests Kobo-backed highlight filters", async ()
       .map(([input]) => String(input))
       .filter((url) => url.includes("/api/books"))
     expect(bookRequests.at(-1)).not.toContain("has_highlights")
+  })
+
+  await user.click(screen.getByRole("combobox", { name: "Source" }))
+  await user.click(screen.getByRole("option", { name: "Sideloaded" }))
+  await waitFor(() => {
+    const bookRequests = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/books"))
+    expect(bookRequests.at(-1)).toContain("source=sideloaded")
   })
 })
 
@@ -503,6 +523,7 @@ test("suppresses unavailable remaining time", async () => {
           total: 1,
           pages: 1,
           filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
         })
       }
       if (url.includes("/api/book?")) {
@@ -553,6 +574,7 @@ test("shows unavailable chapter estimate as a dash", async () => {
           total: 1,
           pages: 1,
           filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
         })
       }
       if (url.includes("/api/book?")) {

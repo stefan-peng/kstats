@@ -106,6 +106,7 @@ export function BookDetailDialog({
                 <div className="flex min-w-0 flex-col gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={book.status} />
+                    <Badge variant="outline">{sourceLabel(book.source_type)}</Badge>
                     {book.downloaded && <Badge variant="outline">Downloaded</Badge>}
                     {book.bookmark_count > 0 && (
                       <Badge variant="secondary">
@@ -293,4 +294,8 @@ export function BookDetailDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+function sourceLabel(source: BookDetail["source_type"]) {
+  return source === "sideloaded" ? "Sideloaded" : "Kobo store"
 }

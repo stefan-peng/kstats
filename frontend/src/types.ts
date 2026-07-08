@@ -1,4 +1,13 @@
 export type ReadingStatus = "unread" | "reading" | "finished"
+export type SourceType = "kobo_store" | "sideloaded" | "custom_server" | "catalog_noise"
+
+export interface SourceSummary {
+  kept_kobo_store: number
+  kept_sideloaded: number
+  ignored_custom_catalog: number
+  removed_with_activity: number
+  merged_removed_history: number
+}
 
 export interface DeviceStatus {
   connected: boolean
@@ -28,6 +37,7 @@ export interface Book {
   isbn: string | null
   description: string | null
   mime_type: string
+  source_type: SourceType
   bookmark_count: number
   cover_url: string | null
 }
@@ -64,6 +74,7 @@ export interface DashboardData {
     reading_seconds: number
   }
   status_counts: Record<ReadingStatus, number>
+  source_summary: SourceSummary
   monthly_completions: Array<{ month: string; count: number }>
   continue_reading: Book[]
   top_books: Book[]
@@ -80,4 +91,5 @@ export interface BooksResponse {
     publishers: string[]
     languages: string[]
   }
+  source_summary: SourceSummary
 }

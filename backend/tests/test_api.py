@@ -121,6 +121,150 @@ def test_books_filter_without_highlights(client):
     assert "book-reading" not in {book["content_id"] for book in payload["items"]}
 
 
+def test_source_filter_hides_removed_and_blank_rows_but_keeps_sideloaded(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', ?, 'Source Author', 0, 0, 0, 1, ?)
+            """,
+            [
+                ("removed-noise", "Removed Noise", "removed"),
+                ("blank-noise", "Blank Noise", ""),
+                ("sideloaded-book", "Sideloaded Book", "kepub_user"),
+            ],
+        )
+
+    response = client.get("/api/books", params={"page_size": 100})
+
+    assert response.status_code == 200
+    payload = response.json()
+    ids = {book["content_id"] for book in payload["items"]}
+    assert "sideloaded-book" in ids
+    assert "removed-noise" not in ids
+    assert "blank-noise" not in ids
+    assert payload["source_summary"]["kept_sideloaded"] == 1
+    assert payload["source_summary"]["ignored_custom_catalog"] == 2
+
+
+def test_books_combines_where_and_having_filters_in_placeholder_order(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, IsDownloaded,
+                Series, LastTimeFinishedReading, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', ?, 'Filter Author', ?, 0, 0, 1, ?, ?, ?)
+            """,
+            [
+                (
+                    "sideloaded-reading",
+                    "Sideloaded Reading",
+                    1,
+                    None,
+                    None,
+                    "kepub_user",
+                ),
+                (
+                    "finished-series-match",
+                    "Finished Series Match",
+                    2,
+                    "Mixed Filters",
+                    "2026-07-02T12:00:00Z",
+                    "test-user",
+                ),
+            ],
+        )
+
+    status_source = client.get(
+        "/api/books",
+        params={"status": "reading", "source": "sideloaded"},
+    )
+    month_series = client.get(
+        "/api/books",
+        params={"finished_month": "2026-07", "series": "Mixed Filters"},
+    )
+
+    assert status_source.status_code == 200
+    assert [book["content_id"] for book in status_source.json()["items"]] == [
+        "sideloaded-reading"
+    ]
+    assert month_series.status_code == 200
+    assert [book["content_id"] for book in month_series.json()["items"]] == [
+        "finished-series-match"
+    ]
+
+
+def test_removed_history_merges_by_colon_title_prefix_and_author(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                CurrentChapterEstimate, RestOfBookEstimate, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            [
+                (
+                    "canonical-prefix",
+                    "Siheyuan",
+                    "Same Author",
+                    0,
+                    0,
+                    0,
+                    None,
+                    0,
+                    0,
+                    "test-user",
+                ),
+                (
+                    "removed-prefix",
+                    "Siheyuan: Sign-in Starting from 1951",
+                    "Same Author",
+                    1,
+                    500,
+                    25,
+                    "2026-06-20T12:00:00Z",
+                    100,
+                    200,
+                    "removed",
+                ),
+                (
+                    "removed-standalone",
+                    "Other Removed",
+                    "Other Author",
+                    1,
+                    900,
+                    50,
+                    "2026-06-21T12:00:00Z",
+                    0,
+                    0,
+                    "removed",
+                ),
+            ],
+        )
+
+    detail = client.get("/api/book", params={"content_id": "canonical-prefix"}).json()
+    ids = {
+        book["content_id"]
+        for book in client.get("/api/books", params={"page_size": 100}).json()["items"]
+    }
+    dashboard = client.get("/api/dashboard").json()
+
+    assert detail["status"] == "reading"
+    assert detail["reading_seconds"] == 500
+    assert detail["percent_read"] == 25
+    assert detail["remaining_seconds"] == 300
+    assert "removed-prefix" not in ids
+    assert "removed-standalone" not in ids
+    assert dashboard["source_summary"]["removed_with_activity"] == 2
+    assert dashboard["source_summary"]["merged_removed_history"] == 1
+
+
 def test_books_sort_by_in_progress_remaining_time(client):
     response = client.get(
         "/api/books",

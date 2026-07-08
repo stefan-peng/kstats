@@ -69,6 +69,7 @@ export function LibrarySection({
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [status, setStatus] = useState("all")
   const [availability, setAvailability] = useState("all")
+  const [source, setSource] = useState("all")
   const [highlightFilter, setHighlightFilter] = useState("all")
   const [series, setSeries] = useState("all")
   const [publisher, setPublisher] = useState("all")
@@ -103,6 +104,7 @@ export function LibrarySection({
     if (availability !== "all") {
       query.set("downloaded", availability === "downloaded" ? "true" : "false")
     }
+    if (source !== "all") query.set("source", source)
     if (highlightFilter !== "all") {
       query.set("has_highlights", highlightFilter === "with" ? "true" : "false")
     }
@@ -129,6 +131,7 @@ export function LibrarySection({
     language,
     page,
     publisher,
+    source,
     snapshotVersion,
     sorting,
     status,
@@ -250,6 +253,15 @@ export function LibrarySection({
           },
         }
       : null,
+    source !== "all"
+      ? {
+          label: source === "kobo_store" ? "Kobo store" : "Sideloaded",
+          clear: () => {
+            setSource("all")
+            setPage(1)
+          },
+        }
+      : null,
     series !== "all"
       ? {
           label: `Series: ${series}`,
@@ -287,7 +299,7 @@ export function LibrarySection({
         </h2>
       </header>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1.7fr)_repeat(6,minmax(8.5rem,1fr))]">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1.7fr)_repeat(7,minmax(8rem,1fr))]">
         <div className="relative sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -327,6 +339,21 @@ export function LibrarySection({
               <SelectItem value="all">All books</SelectItem>
               <SelectItem value="downloaded">Downloaded</SelectItem>
               <SelectItem value="cloud">Cloud only</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Select value={source} onValueChange={(value) => {
+          setSource(value)
+          setPage(1)
+        }}>
+          <SelectTrigger aria-label="Source" className="h-9 w-full">
+            <SelectValue placeholder="Source" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="all">All shown</SelectItem>
+              <SelectItem value="kobo_store">Kobo store</SelectItem>
+              <SelectItem value="sideloaded">Sideloaded</SelectItem>
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -498,7 +525,7 @@ export function LibrarySection({
       <footer className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground">
           {data
-            ? `${formatNumber(data.total)} ${data.total === 1 ? "book" : "books"}`
+            ? `${formatNumber(data.total)} ${data.total === 1 ? "book" : "books"}; ${formatNumber(data.source_summary.ignored_custom_catalog)} custom/catalog rows ignored`
             : "Loading books…"}
         </p>
         <div className="flex items-center gap-2">

@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .config import Settings
+from .source_processing import rebuild_derived_tables
 
 
 class ImportError(RuntimeError):
@@ -91,12 +92,11 @@ def _copy_covers(settings: Settings, source: Path) -> None:
     covers = _cover_index(source_root)
     with closing(sqlite3.connect(settings.snapshot_db)) as connection:
         rows = connection.execute(
-            """
-            SELECT DISTINCT ImageId
-            FROM content
-            WHERE ContentType = 6
-              AND NULLIF(ImageId, '') IS NOT NULL
-            """
+            f"""
+            SELECT DISTINCT image_id
+            FROM kstats_books
+            WHERE NULLIF(image_id, '') IS NOT NULL
+            """,
         ).fetchall()
 
     for (image_id,) in rows:
@@ -135,6 +135,7 @@ def import_database(settings: Settings) -> dict[str, str | bool | None]:
             ).fetchone()
             if not integrity or integrity[0] != "ok":
                 raise ImportError("Imported database failed its integrity check")
+            rebuild_derived_tables(destination_connection)
         os.replace(temporary, settings.snapshot_db)
     except ImportError:
         temporary.unlink(missing_ok=True)

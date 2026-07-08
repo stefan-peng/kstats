@@ -130,6 +130,9 @@ export function OverviewPage({
               ? `Snapshot from ${formatDate(device.imported_at)}`
               : "No snapshot imported"}
           </p>
+          <p className="text-xs text-muted-foreground">
+            {formatNumber(dashboard.totals.library)} books shown; {formatNumber(dashboard.source_summary.ignored_custom_catalog)} custom/catalog rows ignored
+          </p>
         </div>
       </header>
 
