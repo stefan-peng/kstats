@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import App from "./App"
@@ -176,8 +176,48 @@ test("does not claim to use a snapshot when none is available", async () => {
     }),
   )
   render(<App />)
-  expect(await screen.findByText("No snapshot")).toBeVisible()
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
   expect(screen.queryByText("Using snapshot")).not.toBeInTheDocument()
+})
+
+test("updates Kobo connection status when a disconnected Kobo is rechecked", async () => {
+  let statusCalls = 0
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        statusCalls += 1
+        return Response.json({
+          connected: statusCalls === 1,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/dashboard")) return Response.json(dashboard)
+      if (url.includes("/api/books")) {
+        return Response.json({
+          items: dashboard.continue_reading,
+          page: 1,
+          page_size: 20,
+          total: 1,
+          pages: 1,
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  render(<App />)
+  expect(await screen.findByText("Kobo connected")).toBeVisible()
+
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"))
+  })
+
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
+  expect(screen.queryByText("Kobo connected")).not.toBeInTheDocument()
 })
 
 test("supports library search and sortable headers on the dashboard", async () => {

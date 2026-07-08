@@ -29,9 +29,7 @@ export function AppShell({
     ? "Checking Kobo"
     : device.connected
       ? "Kobo connected"
-      : device.snapshot_available
-        ? "Using snapshot"
-        : "No snapshot"
+      : "Kobo disconnected"
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
