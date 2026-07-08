@@ -285,9 +285,6 @@ export function LibrarySection({
         <h2 id="library-heading" className="font-serif text-2xl font-semibold">
           Library
         </h2>
-        <p className="mt-2 text-muted-foreground">
-          Search, filter, and sort the books in your local Kobo snapshot.
-        </p>
       </header>
 
       <div className="flex flex-col gap-3 md:flex-row">
@@ -384,7 +381,6 @@ export function LibrarySection({
 
       {activeFilters.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Active filters</span>
           {activeFilters.map((filter) => (
             <Badge key={filter.label} variant="secondary" className="gap-1">
               {filter.label}

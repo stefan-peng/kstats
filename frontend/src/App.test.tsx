@@ -162,9 +162,13 @@ test("renders overview metrics from the imported snapshot", async () => {
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
   expect(screen.getByRole("heading", { name: "Most read" })).toBeVisible()
   expect(screen.getByText("Most Read Book")).toBeVisible()
-  expect(screen.getByText("Import health")).toBeVisible()
-  expect(screen.getByText(".data/KoboReader.sqlite · read-only")).toBeVisible()
+  expect(
+    screen.queryByText("Local Kobo snapshot data, filtered to reliable reader fields."),
+  ).not.toBeInTheDocument()
   expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
+  expect(
+    screen.queryByText("Search, filter, and sort the books in your local Kobo snapshot."),
+  ).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Open navigation" })).not.toBeInTheDocument()
   await waitFor(() => {
     const sectors = document.querySelectorAll(".recharts-pie-sector path")
@@ -354,9 +358,8 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).queryByText("unsafe text")).not.toBeInTheDocument()
   expect(within(dialog).getByText("Highlighted text")).toBeVisible()
   expect(within(dialog).getByLabelText("Current Book cover")).toBeVisible()
-  expect(within(dialog).getByText("Snapshot file")).toBeVisible()
-  expect(within(dialog).getByText(".data/KoboReader.sqlite")).toBeVisible()
-  expect(within(dialog).getByText("Local read-only copy")).toBeVisible()
+  expect(within(dialog).queryByText("Summary")).not.toBeInTheDocument()
+  expect(within(dialog).queryByText("Snapshot file")).not.toBeInTheDocument()
   expect(within(dialog).queryByText("Times opened")).not.toBeInTheDocument()
   expect(within(dialog).getByText("Estimated time remaining")).toBeVisible()
   expect(within(dialog).getByText("4h 19m")).toBeVisible()

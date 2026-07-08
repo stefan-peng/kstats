@@ -2,11 +2,8 @@ import { useEffect, useState } from "react"
 import {
   CalendarDays,
   Clock3,
-  Database,
   Highlighter,
-  Info,
   Languages,
-  ShieldCheck,
   Timer,
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -225,13 +222,7 @@ export function BookDetailDialog({
               {book.description && (
                 <>
                   <Separator />
-                  <section className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <Info className="size-4 text-primary" />
-                      <h3 className="font-medium">Summary</h3>
-                    </div>
-                    <FormattedText>{book.description}</FormattedText>
-                  </section>
+                  <FormattedText>{book.description}</FormattedText>
                 </>
               )}
 
@@ -295,28 +286,6 @@ export function BookDetailDialog({
                     </blockquote>
                   ))
                 )}
-              </section>
-
-              <Separator />
-              <section className="grid gap-3 text-sm sm:grid-cols-2">
-                <div className="flex items-start gap-3 rounded-lg border p-3">
-                  <Database className="mt-0.5 size-4 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-muted-foreground">Snapshot file</p>
-                    <p className="truncate font-medium">
-                      {book.data_source.snapshot_path}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border p-3">
-                  <ShieldCheck className="mt-0.5 size-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-muted-foreground">Data mode</p>
-                    <p className="font-medium">
-                      {book.data_source.read_only ? "Local read-only copy" : "Writable"}
-                    </p>
-                  </div>
-                </div>
               </section>
             </div>
           </>
