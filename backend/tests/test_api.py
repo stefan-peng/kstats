@@ -54,6 +54,16 @@ def test_startup_import_and_dashboard_exclude_pocket(client):
     assert "recent_books" not in payload
 
 
+def test_startup_import_failure_raises(tmp_path):
+    source = tmp_path / "source.sqlite"
+    source.write_bytes(b"not a sqlite database")
+    settings = Settings(source_db=source, data_dir=tmp_path / "data")
+
+    with pytest.raises(KoboImportError, match="Unable to import Kobo database"):
+        with TestClient(create_app(settings)):
+            pass
+
+
 def test_books_support_search_filters_and_sorting(client):
     response = client.get(
         "/api/books",
@@ -170,6 +180,32 @@ def test_book_detail_includes_visible_highlights(client):
     ]
 
 
+def test_book_detail_reports_corrupt_dictionary_event(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute(
+            """
+            INSERT INTO Event (
+                EventType, EventCount, LastOccurrence, ContentID, Checksum, ExtraData
+            ) VALUES (9, 1, '2026-06-18T12:00:00Z', ?, 'corrupt', ?)
+            """,
+            ("book-reading", b"\x00"),
+        )
+
+    response = client.get("/api/book", params={"content_id": "book-reading"})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Unexpected end of Kobo event payload"
+
+
+def test_device_status_reports_corrupt_import_metadata(client, settings):
+    settings.import_metadata.write_text("{not json", encoding="utf-8")
+
+    response = client.get("/api/device/status")
+
+    assert response.status_code == 500
+    assert "Unable to read import metadata" in response.json()["detail"]
+
+
 def test_finished_book_suppresses_stale_reading_estimates(client):
     response = client.get("/api/book", params={"content_id": "book-finished"})
 
@@ -187,10 +223,8 @@ def test_failed_import_keeps_previous_snapshot(settings):
         before = connection.execute("SELECT COUNT(*) FROM content").fetchone()[0]
 
     settings.source_db.write_bytes(b"not a sqlite database")
-    try:
+    with pytest.raises(KoboImportError, match="Unable to import Kobo database"):
         import_database(settings)
-    except Exception:
-        pass
 
     with sqlite3.connect(settings.snapshot_db) as connection:
         after = connection.execute("SELECT COUNT(*) FROM content").fetchone()[0]

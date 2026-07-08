@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import Settings
 from .importer import ImportError, device_status, import_database
+from .kobo_events import EventDecodeError
 from .repository import Repository
 
 
@@ -19,10 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             not app_settings.snapshot_db.is_file()
             and app_settings.resolve_source_db().is_file()
         ):
-            try:
-                import_database(app_settings)
-            except ImportError:
-                pass
+            import_database(app_settings)
         yield
 
     app = FastAPI(title="Kobo Stats", lifespan=lifespan)
@@ -33,7 +31,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/device/status")
     def get_device_status(request: Request):
-        return device_status(request.app.state.settings)
+        try:
+            return device_status(request.app.state.settings)
+        except ImportError as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
 
     @app.post("/api/import")
     def refresh_database(request: Request):
@@ -87,6 +88,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             book = repo.book(content_id)
         except FileNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except EventDecodeError as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
         if book is None:
             raise HTTPException(status_code=404, detail="Book not found")
         return book

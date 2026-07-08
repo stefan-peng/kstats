@@ -60,11 +60,29 @@ def _metadata(settings: Settings) -> dict[str, str | None]:
         return {"imported_at": None, "source": None}
     try:
         payload = json.loads(settings.import_metadata.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {"imported_at": None, "source": None}
+    except (OSError, json.JSONDecodeError) as error:
+        raise ImportError(
+            f"Unable to read import metadata at {settings.import_metadata}: {error}"
+        ) from error
+    if not isinstance(payload, dict):
+        raise ImportError(
+            f"Unable to read import metadata at {settings.import_metadata}: expected object"
+        )
+    imported_at = payload.get("imported_at")
+    source = payload.get("source")
+    if imported_at is not None and not isinstance(imported_at, str):
+        raise ImportError(
+            f"Unable to read import metadata at {settings.import_metadata}: "
+            "imported_at must be a string or null"
+        )
+    if source is not None and not isinstance(source, str):
+        raise ImportError(
+            f"Unable to read import metadata at {settings.import_metadata}: "
+            "source must be a string or null"
+        )
     return {
-        "imported_at": payload.get("imported_at"),
-        "source": payload.get("source"),
+        "imported_at": imported_at,
+        "source": source,
     }
 
 
