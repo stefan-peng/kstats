@@ -280,22 +280,22 @@ export function LibrarySection({
   ].filter(Boolean) as Array<{ label: string; clear: () => void }>
 
   return (
-    <section className="flex flex-col gap-7" aria-labelledby="library-heading">
+    <section className="flex flex-col gap-5" aria-labelledby="library-heading">
       <header>
         <h2 id="library-heading" className="font-serif text-2xl font-semibold">
           Library
         </h2>
       </header>
 
-      <div className="flex flex-col gap-3 md:flex-row">
-        <div className="relative flex-1">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1.7fr)_repeat(6,minmax(8.5rem,1fr))]">
+        <div className="relative sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search library"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by title or author"
-            className="pl-9"
+            className="h-9 pl-9"
           />
         </div>
         <Select value={status} onValueChange={(value) => {
@@ -303,7 +303,7 @@ export function LibrarySection({
           setStatus(value)
           setPage(1)
         }}>
-          <SelectTrigger className="w-full md:w-44">
+          <SelectTrigger className="h-9 w-full">
             <SelectValue placeholder="Reading status" />
           </SelectTrigger>
           <SelectContent>
@@ -319,7 +319,7 @@ export function LibrarySection({
           setAvailability(value)
           setPage(1)
         }}>
-          <SelectTrigger className="w-full md:w-44">
+          <SelectTrigger className="h-9 w-full">
             <SelectValue placeholder="Availability" />
           </SelectTrigger>
           <SelectContent>
@@ -334,7 +334,7 @@ export function LibrarySection({
           setHighlightFilter(value)
           setPage(1)
         }}>
-          <SelectTrigger aria-label="Highlights" className="w-full md:w-44">
+          <SelectTrigger aria-label="Highlights" className="h-9 w-full">
             <SelectValue placeholder="Highlights" />
           </SelectTrigger>
           <SelectContent>
@@ -345,8 +345,6 @@ export function LibrarySection({
             </SelectGroup>
           </SelectContent>
         </Select>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
         <FilterSelect
           label="Series"
           value={series}
@@ -380,7 +378,7 @@ export function LibrarySection({
       </div>
 
       {activeFilters.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="-mt-1 flex flex-wrap items-center gap-2">
           {activeFilters.map((filter) => (
             <Badge key={filter.label} variant="secondary" className="gap-1">
               {filter.label}
@@ -546,7 +544,7 @@ function FilterSelect({
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger aria-label={label}>
+      <SelectTrigger aria-label={label} className="h-9 w-full">
         <SelectValue placeholder={allLabel} />
       </SelectTrigger>
       <SelectContent>
