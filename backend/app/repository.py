@@ -4,7 +4,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
+from .config import Settings
 from .kobo_events import (
     DICTIONARY_EVENT_TYPE,
     decode_event_payload,
@@ -50,7 +52,17 @@ SELECT
     NULLIF(SeriesNumber, '') AS series_number,
     NULLIF(Publisher, '') AS publisher,
     NULLIF(Description, '') AS description,
-    MimeType AS mime_type
+    NULLIF(Language, '') AS language,
+    NULLIF(ISBN, '') AS isbn,
+    NULLIF(ImageId, '') AS image_id,
+    MimeType AS mime_type,
+    (
+        SELECT COUNT(*)
+        FROM Bookmark
+        WHERE VolumeID = content.ContentID
+          AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT)))
+              IN ('0', 'false')
+    ) AS bookmark_count
 FROM content
 """
 
@@ -59,18 +71,25 @@ def status_name(value: int) -> str:
     return {0: "unread", 1: "reading", 2: "finished"}.get(value, "unread")
 
 
-def serialize_book(row: sqlite3.Row) -> dict[str, Any]:
+def serialize_book(row: sqlite3.Row, covers_dir: Path) -> dict[str, Any]:
     book = dict(row)
     book["status"] = status_name(book.pop("read_status"))
     if book["status"] == "finished":
         book["percent_read"] = 100
     book["downloaded"] = bool(book["downloaded"])
+    image_id = book.pop("image_id", None)
+    cover = covers_dir / f"{image_id}-grid.jpg" if image_id else None
+    book["cover_url"] = (
+        f"/api/covers/{quote(cover.name)}" if cover and cover.is_file() else None
+    )
     return book
 
 
 class Repository:
-    def __init__(self, database: Path):
-        self.database = database
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self.database = settings.snapshot_db
+        self.covers_dir = settings.covers_dir
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -169,8 +188,10 @@ class Repository:
             "monthly_completions": [
                 dict(row) for row in reversed(monthly_rows) if row["month"]
             ],
-            "continue_reading": [serialize_book(row) for row in continue_rows],
-            "top_books": [serialize_book(row) for row in top_rows],
+            "continue_reading": [
+                serialize_book(row, self.covers_dir) for row in continue_rows
+            ],
+            "top_books": [serialize_book(row, self.covers_dir) for row in top_rows],
         }
 
     def books(
@@ -181,7 +202,11 @@ class Repository:
         search: str | None,
         status: str | None,
         downloaded: bool | None,
+        has_highlights: bool | None,
         finished_month: str | None,
+        series: str | None,
+        publisher: str | None,
+        language: str | None,
         sort: str,
         direction: str,
     ) -> dict[str, Any]:
@@ -214,6 +239,26 @@ class Repository:
                 "AND substr(LastTimeFinishedReading, 1, 7) = ?"
             )
             parameters.append(finished_month)
+        if has_highlights is not None:
+            bookmark_exists = """
+            EXISTS (
+                SELECT 1
+                FROM Bookmark
+                WHERE VolumeID = content.ContentID
+                  AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT)))
+                      IN ('0', 'false')
+            )
+            """
+            filters.append(bookmark_exists if has_highlights else f"NOT {bookmark_exists}")
+        if series:
+            filters.append("NULLIF(Series, '') = ?")
+            parameters.append(series)
+        if publisher:
+            filters.append("NULLIF(Publisher, '') = ?")
+            parameters.append(publisher)
+        if language:
+            filters.append("NULLIF(Language, '') = ?")
+            parameters.append(language)
 
         sort_columns = {
             "title": "title",
@@ -243,12 +288,35 @@ class Repository:
             ).fetchall()
 
         return {
-            "items": [serialize_book(row) for row in rows],
+            "items": [serialize_book(row, self.covers_dir) for row in rows],
             "page": page,
             "page_size": page_size,
             "total": total,
             "pages": max(1, math.ceil(total / page_size)),
+            "filter_options": self.filter_options(),
         }
+
+    def filter_options(self) -> dict[str, list[str]]:
+        where, parameters = self._book_filter()
+        with self.connect() as connection:
+            options: dict[str, list[str]] = {}
+            for key, column in {
+                "series": "Series",
+                "publishers": "Publisher",
+                "languages": "Language",
+            }.items():
+                rows = connection.execute(
+                    f"""
+                    SELECT DISTINCT NULLIF({column}, '') AS value
+                    FROM content
+                    WHERE {where} AND NULLIF({column}, '') IS NOT NULL
+                    ORDER BY value COLLATE NOCASE
+                    LIMIT 200
+                    """,
+                    parameters,
+                ).fetchall()
+                options[key] = [row["value"] for row in rows]
+        return options
 
     def book(self, content_id: str) -> dict[str, Any] | None:
         where, parameters = self._book_filter()
@@ -296,7 +364,15 @@ class Repository:
                         (lookup["dictionary"] or "").casefold(),
                     )
                     dictionary_lookups.setdefault(key, lookup)
-        book = serialize_book(row)
+        book = serialize_book(row, self.covers_dir)
+        image_id = row["image_id"]
+        full_cover = self.covers_dir / f"{image_id}-full.jpg" if image_id else None
+        if full_cover and full_cover.is_file():
+            book["cover_url"] = f"/api/covers/{quote(full_cover.name)}"
+        book["data_source"] = {
+            "snapshot_path": str(self.database),
+            "read_only": True,
+        }
         book["bookmarks"] = [dict(item) for item in bookmark_rows]
         book["dictionary_lookups"] = sorted(
             dictionary_lookups.values(),

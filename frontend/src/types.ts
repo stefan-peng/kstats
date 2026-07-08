@@ -24,8 +24,12 @@ export interface Book {
   series: string | null
   series_number: string | null
   publisher: string | null
+  language: string | null
+  isbn: string | null
   description: string | null
   mime_type: string
+  bookmark_count: number
+  cover_url: string | null
 }
 
 export interface Bookmark {
@@ -46,6 +50,10 @@ export interface DictionaryLookup {
 export interface BookDetail extends Book {
   bookmarks: Bookmark[]
   dictionary_lookups: DictionaryLookup[]
+  data_source: {
+    snapshot_path: string
+    read_only: boolean
+  }
 }
 
 export interface DashboardData {
@@ -67,4 +75,9 @@ export interface BooksResponse {
   page_size: number
   total: number
   pages: number
+  filter_options: {
+    series: string[]
+    publishers: string[]
+    languages: string[]
+  }
 }

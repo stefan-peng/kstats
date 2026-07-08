@@ -94,3 +94,7 @@ class Settings:
     @property
     def import_metadata(self) -> Path:
         return self.data_dir / "import.json"
+
+    @property
+    def covers_dir(self) -> Path:
+        return self.data_dir / "covers"

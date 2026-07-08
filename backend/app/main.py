@@ -27,7 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = app_settings
 
     def repository(request: Request) -> Repository:
-        return Repository(request.app.state.settings.snapshot_db)
+        return Repository(request.app.state.settings)
 
     @app.get("/api/device/status")
     def get_device_status(request: Request):
@@ -57,10 +57,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         search: str | None = None,
         status: str | None = None,
         downloaded: bool | None = None,
+        has_highlights: bool | None = None,
         finished_month: str | None = Query(
             None,
             pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
         ),
+        series: str | None = None,
+        publisher: str | None = None,
+        language: str | None = None,
         sort: str = "last_read",
         direction: str = "desc",
         repo: Repository = Depends(repository),
@@ -72,7 +76,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 search=search,
                 status=status,
                 downloaded=downloaded,
+                has_highlights=has_highlights,
                 finished_month=finished_month,
+                series=series,
+                publisher=publisher,
+                language=language,
                 sort=sort,
                 direction=direction,
             )
@@ -93,6 +101,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if book is None:
             raise HTTPException(status_code=404, detail="Book not found")
         return book
+
+    @app.get("/api/covers/{cover_id:path}", include_in_schema=False)
+    def get_cover(cover_id: str, request: Request):
+        if "/" in cover_id or "\\" in cover_id or not cover_id.endswith(".jpg"):
+            raise HTTPException(status_code=404, detail="Cover not found")
+        covers_dir = request.app.state.settings.covers_dir.resolve()
+        candidate = (covers_dir / cover_id).resolve()
+        try:
+            candidate.relative_to(covers_dir)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail="Cover not found") from error
+        if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="Cover not found")
+        return FileResponse(candidate, media_type="image/jpeg")
 
     frontend_dist = (Path(__file__).parents[2] / "frontend" / "dist").resolve()
     if frontend_dist.is_dir():

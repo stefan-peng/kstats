@@ -7,6 +7,7 @@ from backend.app.config import Settings
 from backend.app.importer import ImportError as KoboImportError
 from backend.app.importer import import_database
 from backend.app.main import create_app
+from backend.tests.conftest import create_fixture_database
 
 
 def insert_book(
@@ -79,6 +80,8 @@ def test_books_support_search_filters_and_sorting(client):
     assert payload["total"] == 1
     assert payload["items"][0]["content_id"] == "book-reading"
     assert payload["items"][0]["downloaded"] is True
+    assert payload["items"][0]["bookmark_count"] == 1
+    assert payload["items"][0]["cover_url"] is None
 
 
 def test_books_filter_by_finished_month(client):
@@ -89,6 +92,33 @@ def test_books_filter_by_finished_month(client):
     assert payload["total"] == 1
     assert [book["content_id"] for book in payload["items"]] == ["book-finished"]
     assert payload["items"][0]["percent_read"] == 100
+
+
+def test_books_filter_by_highlights_and_metadata(client):
+    response = client.get(
+        "/api/books",
+        params={
+            "has_highlights": "true",
+            "series": "Series",
+            "publisher": "Press",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["content_id"] == "book-reading"
+    assert payload["items"][0]["bookmark_count"] == 1
+    assert "Series" in payload["filter_options"]["series"]
+    assert "Press" in payload["filter_options"]["publishers"]
+
+
+def test_books_filter_without_highlights(client):
+    response = client.get("/api/books", params={"has_highlights": "false"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "book-reading" not in {book["content_id"] for book in payload["items"]}
 
 
 def test_books_sort_by_in_progress_remaining_time(client):
@@ -157,6 +187,12 @@ def test_book_detail_includes_visible_highlights(client):
     response = client.get("/api/book", params={"content_id": "book-reading"})
     payload = response.json()
     assert payload["word_count"] == 80000
+    assert payload["bookmark_count"] == 1
+    assert payload["cover_url"] is None
+    assert payload["data_source"] == {
+        "snapshot_path": str(client.app.state.settings.snapshot_db),
+        "read_only": True,
+    }
     assert payload["current_chapter_estimate_seconds"] == 4060
     assert payload["rest_of_book_estimate_seconds"] == 11507
     assert payload["remaining_seconds"] == 15567
@@ -293,3 +329,52 @@ def test_status_and_import_rescan_device_candidates_after_startup(tmp_path):
         assert payload["connected"] is True
         assert payload["snapshot_available"] is True
         assert payload["source"] == str(source)
+
+
+def test_cover_route_serves_only_cached_cover_files(client, settings):
+    settings.covers_dir.mkdir(parents=True)
+    cover = settings.covers_dir / "cover-id-grid.jpg"
+    cover.write_bytes(b"\xff\xd8\xffjpeg")
+
+    response = client.get("/api/covers/cover-id-grid.jpg")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.content.startswith(b"\xff\xd8\xff")
+    assert client.get("/api/covers/%2e%2e%2fimport.json").status_code == 404
+    assert client.get("/api/covers/missing-grid.jpg").status_code == 404
+
+
+def test_import_copies_available_cover_assets_best_effort(tmp_path):
+    source = tmp_path / "KOBOeReader" / ".kobo" / "KoboReader.sqlite"
+    source.parent.mkdir(parents=True)
+    create_fixture_database(source)
+    image_id = "cover-[image]"
+    with sqlite3.connect(source) as connection:
+        connection.execute(
+            "UPDATE content SET ImageId = ? WHERE ContentID = 'book-reading'",
+            (image_id,),
+        )
+    covers = tmp_path / "KOBOeReader" / ".kobo-images" / "1" / "2"
+    covers.mkdir(parents=True)
+    (covers / f"{image_id} - N3_LIBRARY_GRID.parsed").write_bytes(b"\xff\xd8\xffgrid")
+    (covers / f"{image_id} - N3_LIBRARY_FULL.parsed").write_bytes(b"not jpeg")
+    settings = Settings(source_db=source, data_dir=tmp_path / "data")
+
+    status = import_database(settings)
+
+    assert status["snapshot_available"] is True
+    assert (settings.covers_dir / f"{image_id}-grid.jpg").is_file()
+    assert not (settings.covers_dir / f"{image_id}-full.jpg").exists()
+
+
+def test_import_succeeds_without_cover_directory(tmp_path):
+    source = tmp_path / "KOBOeReader" / ".kobo" / "KoboReader.sqlite"
+    source.parent.mkdir(parents=True)
+    create_fixture_database(source)
+    settings = Settings(source_db=source, data_dir=tmp_path / "data")
+
+    status = import_database(settings)
+
+    assert status["snapshot_available"] is True
+    assert not settings.covers_dir.exists()

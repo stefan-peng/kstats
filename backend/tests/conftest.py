@@ -32,7 +32,10 @@ CREATE TABLE content (
     Publisher TEXT,
     Description TEXT,
     CurrentChapterEstimate INTEGER,
-    RestOfBookEstimate INTEGER
+    RestOfBookEstimate INTEGER,
+    ImageId TEXT,
+    Language TEXT,
+    ISBN TEXT
 );
 CREATE TABLE Bookmark (
     BookmarkID TEXT PRIMARY KEY,
@@ -89,7 +92,13 @@ def create_fixture_database(path: Path) -> None:
     connection.executescript(SCHEMA)
     connection.executemany(
         """
-        INSERT INTO content VALUES (
+        INSERT INTO content (
+            ContentID, ContentType, MimeType, BookTitle, Title, Attribution,
+            ReadStatus, TimeSpentReading, ___PercentRead, TimesStartedReading,
+            DateLastRead, LastTimeStartedReading, LastTimeFinishedReading,
+            IsDownloaded, WordCount, Series, SeriesNumber, Publisher, Description,
+            CurrentChapterEstimate, RestOfBookEstimate
+        ) VALUES (
             ?, 6, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         """,

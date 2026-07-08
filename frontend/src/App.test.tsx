@@ -26,8 +26,12 @@ const dashboard = {
       series: null,
       series_number: null,
       publisher: null,
+      language: "en",
+      isbn: "9780000000001",
       description: null,
       mime_type: "application/epub+zip",
+      bookmark_count: 1,
+      cover_url: "/api/covers/book-1-grid.jpg",
     },
   ],
   top_books: [
@@ -48,8 +52,12 @@ const dashboard = {
       series: null,
       series_number: null,
       publisher: null,
+      language: "en",
+      isbn: null,
       description: null,
       mime_type: "application/epub+zip",
+      bookmark_count: 0,
+      cover_url: null,
     },
   ],
 }
@@ -59,8 +67,18 @@ function bookDetail(overrides = {}) {
     ...dashboard.continue_reading[0],
     bookmarks: [],
     dictionary_lookups: [],
+    data_source: {
+      snapshot_path: ".data/KoboReader.sqlite",
+      read_only: true,
+    },
     ...overrides,
   }
+}
+
+const filterOptions = {
+  series: ["Series"],
+  publishers: ["Press"],
+  languages: ["en"],
 }
 
 function mockFetch() {
@@ -84,18 +102,18 @@ function mockFetch() {
           page_size: 20,
           total: 1,
           pages: 1,
+          filter_options: filterOptions,
         })
       }
       if (url.includes("/api/book?")) {
         if (url.includes("content_id=book-top")) {
-          return Response.json({
+          return Response.json(bookDetail({
             ...dashboard.top_books[0],
             bookmarks: [],
             dictionary_lookups: [],
-          })
+          }))
         }
-        return Response.json({
-          ...dashboard.continue_reading[0],
+        return Response.json(bookDetail({
           description:
             '<p><strong>Formatted introduction</strong> with <em>emphasis</em>.</p><a href="//evil.example">unsafe link</a><script>unsafe text</script>',
           bookmarks: [
@@ -115,7 +133,7 @@ function mockFetch() {
               dictionary: "en",
             },
           ],
-        })
+        }))
       }
       if (url.includes("/api/import")) {
         return Response.json({
@@ -144,6 +162,8 @@ test("renders overview metrics from the imported snapshot", async () => {
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
   expect(screen.getByRole("heading", { name: "Most read" })).toBeVisible()
   expect(screen.getByText("Most Read Book")).toBeVisible()
+  expect(screen.getByText("Import health")).toBeVisible()
+  expect(screen.getByText(".data/KoboReader.sqlite · read-only")).toBeVisible()
   expect(await screen.findByRole("heading", { name: "Library" })).toBeVisible()
   expect(screen.queryByRole("button", { name: "Open navigation" })).not.toBeInTheDocument()
   await waitFor(() => {
@@ -203,6 +223,7 @@ test("updates Kobo connection status when a disconnected Kobo is rechecked", asy
           page_size: 20,
           total: 1,
           pages: 1,
+          filter_options: filterOptions,
         })
       }
       throw new Error(`Unhandled request: ${url}`)
@@ -210,14 +231,14 @@ test("updates Kobo connection status when a disconnected Kobo is rechecked", asy
   )
 
   render(<App />)
-  expect(await screen.findByText("Kobo connected")).toBeVisible()
+  expect((await screen.findAllByText("Kobo connected")).length).toBeGreaterThan(0)
 
   await act(async () => {
     window.dispatchEvent(new Event("focus"))
   })
 
   expect(await screen.findByText("Kobo disconnected")).toBeVisible()
-  expect(screen.queryByText("Kobo connected")).not.toBeInTheDocument()
+  expect(screen.queryAllByText("Kobo connected")).toHaveLength(0)
 })
 
 test("supports library search and sortable headers on the dashboard", async () => {
@@ -249,6 +270,33 @@ test("supports library search and sortable headers on the dashboard", async () =
     )
   })
   expect(await screen.findByText("1 book")).toBeVisible()
+  const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
+})
+
+test("shows active filters and requests Kobo-backed highlight filters", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+
+  const highlights = await screen.findByRole("combobox", { name: "Highlights" })
+  await user.click(highlights)
+  await user.click(screen.getByRole("option", { name: "With highlights" }))
+
+  expect(screen.getAllByText("With highlights").length).toBeGreaterThan(0)
+  await waitFor(() => {
+    const bookRequests = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/books"))
+    expect(bookRequests.at(-1)).toContain("has_highlights=true")
+  })
+
+  await user.click(screen.getByRole("button", { name: "Clear With highlights" }))
+  await waitFor(() => {
+    const bookRequests = vi.mocked(fetch).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/books"))
+    expect(bookRequests.at(-1)).not.toContain("has_highlights")
+  })
 })
 
 test("filters the embedded library from a selected completion month", async () => {
@@ -305,6 +353,10 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).getByText("unsafe link")).not.toHaveAttribute("href")
   expect(within(dialog).queryByText("unsafe text")).not.toBeInTheDocument()
   expect(within(dialog).getByText("Highlighted text")).toBeVisible()
+  expect(within(dialog).getByLabelText("Current Book cover")).toBeVisible()
+  expect(within(dialog).getByText("Snapshot file")).toBeVisible()
+  expect(within(dialog).getByText(".data/KoboReader.sqlite")).toBeVisible()
+  expect(within(dialog).getByText("Local read-only copy")).toBeVisible()
   expect(within(dialog).queryByText("Times opened")).not.toBeInTheDocument()
   expect(within(dialog).getByText("Estimated time remaining")).toBeVisible()
   expect(within(dialog).getByText("4h 19m")).toBeVisible()
@@ -447,10 +499,11 @@ test("suppresses unavailable remaining time", async () => {
           page_size: 20,
           total: 1,
           pages: 1,
+          filter_options: filterOptions,
         })
       }
       if (url.includes("/api/book?")) {
-        return Response.json({
+        return Response.json(bookDetail({
           ...dashboard.continue_reading[0],
           status: "finished",
           remaining_seconds: 0,
@@ -458,7 +511,7 @@ test("suppresses unavailable remaining time", async () => {
           rest_of_book_estimate_seconds: 0,
           bookmarks: [],
           dictionary_lookups: [],
-        })
+        }))
       }
       throw new Error(`Unhandled request: ${url}`)
     }),
@@ -496,17 +549,18 @@ test("shows unavailable chapter estimate as a dash", async () => {
           page_size: 20,
           total: 1,
           pages: 1,
+          filter_options: filterOptions,
         })
       }
       if (url.includes("/api/book?")) {
-        return Response.json({
+        return Response.json(bookDetail({
           ...dashboard.continue_reading[0],
           current_chapter_estimate_seconds: 0,
           rest_of_book_estimate_seconds: 11507,
           remaining_seconds: 11507,
           bookmarks: [],
           dictionary_lookups: [],
-        })
+        }))
       }
       throw new Error(`Unhandled request: ${url}`)
     }),

@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Highlighter,
   X,
   Search,
 } from "lucide-react"
@@ -46,6 +47,7 @@ import {
 } from "@/lib/format"
 import type { Book, BooksResponse } from "@/types"
 import { StatusBadge } from "./status-badge"
+import { BookCover } from "./book-cover"
 
 const helper = createColumnHelper<Book>()
 
@@ -67,6 +69,10 @@ export function LibrarySection({
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [status, setStatus] = useState("all")
   const [availability, setAvailability] = useState("all")
+  const [highlightFilter, setHighlightFilter] = useState("all")
+  const [series, setSeries] = useState("all")
+  const [publisher, setPublisher] = useState("all")
+  const [language, setLanguage] = useState("all")
   const [page, setPage] = useState(1)
   const [sorting, setSorting] = useState<SortingState>([
     { id: "last_read", desc: true },
@@ -97,7 +103,13 @@ export function LibrarySection({
     if (availability !== "all") {
       query.set("downloaded", availability === "downloaded" ? "true" : "false")
     }
+    if (highlightFilter !== "all") {
+      query.set("has_highlights", highlightFilter === "with" ? "true" : "false")
+    }
     if (finishedMonth) query.set("finished_month", finishedMonth)
+    if (series !== "all") query.set("series", series)
+    if (publisher !== "all") query.set("publisher", publisher)
+    if (language !== "all") query.set("language", language)
     let active = true
     setLoading(true)
     setError(null)
@@ -113,10 +125,14 @@ export function LibrarySection({
     availability,
     debouncedSearch,
     finishedMonth,
+    highlightFilter,
+    language,
     page,
+    publisher,
     snapshotVersion,
     sorting,
     status,
+    series,
   ])
 
   const columns = useMemo(
@@ -125,11 +141,21 @@ export function LibrarySection({
         id: "title",
         header: "Book",
         cell: ({ row }) => (
-          <div>
-            <p className="max-w-80 truncate font-medium">{row.original.title}</p>
-            <p className="max-w-80 truncate text-xs text-muted-foreground">
-              {row.original.author}
-            </p>
+          <div className="flex min-w-72 items-center gap-3">
+            <BookCover
+              title={row.original.title}
+              coverUrl={row.original.cover_url}
+              className="w-10"
+            />
+            <div className="min-w-0">
+              <p className="max-w-80 truncate font-medium">{row.original.title}</p>
+              <p className="max-w-80 truncate text-xs text-muted-foreground">
+                {row.original.author}
+              </p>
+              <p className="max-w-80 truncate text-xs text-muted-foreground">
+                {[row.original.series, row.original.publisher].filter(Boolean).join(" · ")}
+              </p>
+            </div>
           </div>
         ),
       }),
@@ -166,6 +192,16 @@ export function LibrarySection({
         header: "Last read",
         cell: ({ getValue }) => formatDate(getValue()),
       }),
+      helper.accessor("bookmark_count", {
+        id: "highlights",
+        header: "Highlights",
+        cell: ({ getValue }) => (
+          <div className="flex items-center gap-2">
+            <Highlighter className="size-4 text-muted-foreground" />
+            <span>{formatNumber(getValue())}</span>
+          </div>
+        ),
+      }),
     ],
     [],
   )
@@ -184,27 +220,74 @@ export function LibrarySection({
     getCoreRowModel: getCoreRowModel(),
   })
 
+  const options = data?.filter_options ?? {
+    series: [],
+    publishers: [],
+    languages: [],
+  }
+  const activeFilters = [
+    finishedMonth
+      ? {
+          label: `Finished in ${formatMonthYear(finishedMonth)}`,
+          clear: onClearFinishedMonth,
+        }
+      : null,
+    availability !== "all"
+      ? {
+          label: availability === "downloaded" ? "Downloaded" : "Cloud only",
+          clear: () => {
+            setAvailability("all")
+            setPage(1)
+          },
+        }
+      : null,
+    highlightFilter !== "all"
+      ? {
+          label: highlightFilter === "with" ? "With highlights" : "No highlights",
+          clear: () => {
+            setHighlightFilter("all")
+            setPage(1)
+          },
+        }
+      : null,
+    series !== "all"
+      ? {
+          label: `Series: ${series}`,
+          clear: () => {
+            setSeries("all")
+            setPage(1)
+          },
+        }
+      : null,
+    publisher !== "all"
+      ? {
+          label: `Publisher: ${publisher}`,
+          clear: () => {
+            setPublisher("all")
+            setPage(1)
+          },
+        }
+      : null,
+    language !== "all"
+      ? {
+          label: `Language: ${language}`,
+          clear: () => {
+            setLanguage("all")
+            setPage(1)
+          },
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; clear: () => void }>
+
   return (
     <section className="flex flex-col gap-7" aria-labelledby="library-heading">
       <header>
         <h2 id="library-heading" className="font-serif text-2xl font-semibold">
           Library
         </h2>
-        {finishedMonth ? (
-          <div className="mt-3 flex items-center gap-2">
-            <Badge variant="secondary">
-              Finished in {formatMonthYear(finishedMonth)}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClearFinishedMonth}
-            >
-              <X data-icon="inline-start" />
-              Clear month
-            </Button>
-          </div>
-        ) : null}
+        <p className="mt-2 text-muted-foreground">
+          Search, filter, and sort the books in your local Kobo snapshot.
+        </p>
       </header>
 
       <div className="flex flex-col gap-3 md:flex-row">
@@ -250,7 +333,73 @@ export function LibrarySection({
             </SelectGroup>
           </SelectContent>
         </Select>
+        <Select value={highlightFilter} onValueChange={(value) => {
+          setHighlightFilter(value)
+          setPage(1)
+        }}>
+          <SelectTrigger aria-label="Highlights" className="w-full md:w-44">
+            <SelectValue placeholder="Highlights" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="all">All highlights</SelectItem>
+              <SelectItem value="with">With highlights</SelectItem>
+              <SelectItem value="without">No highlights</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <FilterSelect
+          label="Series"
+          value={series}
+          options={options.series}
+          allLabel="All series"
+          onValueChange={(value) => {
+            setSeries(value)
+            setPage(1)
+          }}
+        />
+        <FilterSelect
+          label="Publisher"
+          value={publisher}
+          options={options.publishers}
+          allLabel="All publishers"
+          onValueChange={(value) => {
+            setPublisher(value)
+            setPage(1)
+          }}
+        />
+        <FilterSelect
+          label="Language"
+          value={language}
+          options={options.languages}
+          allLabel="All languages"
+          onValueChange={(value) => {
+            setLanguage(value)
+            setPage(1)
+          }}
+        />
+      </div>
+
+      {activeFilters.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Active filters</span>
+          {activeFilters.map((filter) => (
+            <Badge key={filter.label} variant="secondary" className="gap-1">
+              {filter.label}
+              <button
+                type="button"
+                aria-label={`Clear ${filter.label}`}
+                onClick={filter.clear}
+                className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-3" aria-hidden="true" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive">
@@ -310,14 +459,14 @@ export function LibrarySection({
               {loading ? (
                 Array.from({ length: 8 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={7}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                     No books match these filters.
                   </TableCell>
                 </TableRow>
@@ -336,7 +485,7 @@ export function LibrarySection({
                             cell.column.id,
                           )
                             ? "hidden md:table-cell"
-                            : cell.column.id === "last_read"
+                            : ["last_read", "highlights"].includes(cell.column.id)
                               ? "hidden sm:table-cell"
                               : undefined
                         }
@@ -383,5 +532,37 @@ export function LibrarySection({
         </div>
       </footer>
     </section>
+  )
+}
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  allLabel,
+  onValueChange,
+}: {
+  label: string
+  value: string
+  options: string[]
+  allLabel: string
+  onValueChange: (value: string) => void
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger aria-label={label}>
+        <SelectValue placeholder={allLabel} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          <SelectItem value="all">{allLabel}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }

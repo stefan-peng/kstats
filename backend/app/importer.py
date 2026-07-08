@@ -1,6 +1,8 @@
 import json
 import os
+import shutil
 import sqlite3
+from collections.abc import Mapping
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +14,13 @@ class ImportError(RuntimeError):
     pass
 
 
+JPEG_MAGIC = b"\xff\xd8\xff"
+COVER_VARIANTS = {
+    "grid": "N3_LIBRARY_GRID.parsed",
+    "full": "N3_LIBRARY_FULL.parsed",
+}
+
+
 def _write_metadata(path: Path, imported_at: str, source: Path) -> None:
     temporary = path.with_suffix(".tmp")
     temporary.write_text(
@@ -19,6 +28,90 @@ def _write_metadata(path: Path, imported_at: str, source: Path) -> None:
         encoding="utf-8",
     )
     os.replace(temporary, path)
+
+
+def _is_jpeg(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            return handle.read(3) == JPEG_MAGIC
+    except OSError:
+        return False
+
+
+def _cover_source_root(source: Path) -> Path:
+    return source.parents[1] / ".kobo-images"
+
+
+def _cover_destination(settings: Settings, image_id: str, variant: str) -> Path:
+    return settings.covers_dir / f"{image_id}-{variant}.jpg"
+
+
+def _cover_index(source_root: Path) -> dict[str, Path]:
+    expected_suffixes = {f" - {suffix}" for suffix in COVER_VARIANTS.values()}
+    covers: dict[str, Path] = {}
+    try:
+        candidates = source_root.rglob("*")
+        for candidate in candidates:
+            try:
+                if not candidate.is_file():
+                    continue
+            except OSError:
+                continue
+            if any(candidate.name.endswith(suffix) for suffix in expected_suffixes):
+                covers.setdefault(candidate.name, candidate)
+    except OSError:
+        return covers
+    return covers
+
+
+def _copy_cover_variant(
+    *,
+    covers: Mapping[str, Path],
+    settings: Settings,
+    image_id: str,
+    variant: str,
+) -> None:
+    source = covers.get(f"{image_id} - {COVER_VARIANTS[variant]}")
+    if source is None:
+        return
+    if not source.is_file() or not _is_jpeg(source):
+        return
+    destination = _cover_destination(settings, image_id, variant)
+    temporary = destination.with_suffix(".tmp")
+    shutil.copyfile(source, temporary)
+    os.replace(temporary, destination)
+
+
+def _copy_covers(settings: Settings, source: Path) -> None:
+    source_root = _cover_source_root(source)
+    if not source_root.is_dir() or not settings.snapshot_db.is_file():
+        return
+
+    settings.covers_dir.mkdir(parents=True, exist_ok=True)
+    covers = _cover_index(source_root)
+    with closing(sqlite3.connect(settings.snapshot_db)) as connection:
+        rows = connection.execute(
+            """
+            SELECT DISTINCT ImageId
+            FROM content
+            WHERE ContentType = 6
+              AND NULLIF(ImageId, '') IS NOT NULL
+            """
+        ).fetchall()
+
+    for (image_id,) in rows:
+        if not isinstance(image_id, str) or "/" in image_id or "\\" in image_id:
+            continue
+        for variant in COVER_VARIANTS:
+            try:
+                _copy_cover_variant(
+                    covers=covers,
+                    settings=settings,
+                    image_id=image_id,
+                    variant=variant,
+                )
+            except OSError:
+                continue
 
 
 def import_database(settings: Settings) -> dict[str, str | bool | None]:
@@ -51,6 +144,7 @@ def import_database(settings: Settings) -> dict[str, str | bool | None]:
         raise ImportError(f"Unable to import Kobo database: {error}") from error
 
     imported_at = datetime.now(UTC).isoformat()
+    _copy_covers(settings, source)
     _write_metadata(settings.import_metadata, imported_at, source)
     return device_status(settings)
 

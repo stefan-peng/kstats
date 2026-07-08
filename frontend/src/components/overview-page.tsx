@@ -3,8 +3,11 @@ import {
   BookCheck,
   BookOpenText,
   Clock3,
+  Database,
+  HardDrive,
   Library,
   RefreshCw,
+  ShieldCheck,
 } from "lucide-react"
 import {
   Bar,
@@ -111,42 +114,38 @@ export function OverviewPage({
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-8 p-5 md:p-8 lg:p-10">
-      <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+      <header>
         <div>
           <h1 className="font-serif text-4xl font-semibold tracking-tight">
             Reading overview
           </h1>
-        </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
-          <Button onClick={onRefresh} disabled={refreshing || !device?.connected}>
-            <RefreshCw
-              data-icon="inline-start"
-              className={refreshing ? "animate-spin" : undefined}
-            />
-            {refreshing ? "Refreshing…" : "Refresh from Kobo"}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            {device?.imported_at
-              ? `Snapshot from ${formatDate(device.imported_at)}`
-              : "No snapshot imported"}
+          <p className="mt-2 text-muted-foreground">
+            Local Kobo snapshot data, filtered to reliable reader fields.
           </p>
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <Card key={metric.label}>
-            <CardHeader className="flex-row items-start justify-between">
-              <div>
-                <CardDescription>{metric.label}</CardDescription>
-                <CardTitle className="mt-2 font-serif text-3xl">
-                  {metric.value}
-                </CardTitle>
-              </div>
-              <metric.icon className="size-5 text-primary" />
-            </CardHeader>
-          </Card>
-        ))}
+      <section className="grid gap-5 xl:grid-cols-[1fr_320px]">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => (
+            <Card key={metric.label}>
+              <CardHeader className="flex-row items-start justify-between">
+                <div>
+                  <CardDescription>{metric.label}</CardDescription>
+                  <CardTitle className="mt-2 font-serif text-3xl">
+                    {metric.value}
+                  </CardTitle>
+                </div>
+                <metric.icon className="size-5 text-primary" />
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+        <ImportHealthCard
+          device={device}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.9fr_1.5fr]">
@@ -358,6 +357,59 @@ export function OverviewPage({
         onClearFinishedMonth={() => setFinishedMonth(null)}
       />
     </main>
+  )
+}
+
+function ImportHealthCard({
+  device,
+  refreshing,
+  onRefresh,
+}: {
+  device: DeviceStatus | null
+  refreshing: boolean
+  onRefresh: () => void
+}) {
+  const status = device?.connected ? "Kobo connected" : "Using local snapshot"
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Import health</CardTitle>
+        <CardDescription>{status}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 text-sm">
+        <div className="flex items-start gap-3">
+          <Database className="mt-0.5 size-4 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-muted-foreground">Snapshot</p>
+            <p className="truncate font-medium">
+              {device?.imported_at ? formatDate(device.imported_at) : "Not imported"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3">
+          <HardDrive className="mt-0.5 size-4 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-muted-foreground">Source</p>
+            <p className="truncate font-medium">{device?.source ?? "No mounted Kobo"}</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 size-4 text-muted-foreground" />
+          <div>
+            <p className="text-muted-foreground">Local copy</p>
+            <p className="font-medium">.data/KoboReader.sqlite · read-only</p>
+          </div>
+        </div>
+        <Button onClick={onRefresh} disabled={refreshing || !device?.connected}>
+          <RefreshCw
+            data-icon="inline-start"
+            className={refreshing ? "animate-spin" : undefined}
+          />
+          {refreshing ? "Refreshing…" : "Refresh from Kobo"}
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 

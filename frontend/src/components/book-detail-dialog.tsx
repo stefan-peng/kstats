@@ -2,8 +2,11 @@ import { useEffect, useState } from "react"
 import {
   CalendarDays,
   Clock3,
+  Database,
   Highlighter,
+  Info,
   Languages,
+  ShieldCheck,
   Timer,
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -32,6 +35,7 @@ import {
   formatNumber,
 } from "@/lib/format"
 import type { BookDetail } from "@/types"
+import { BookCover } from "./book-cover"
 import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
 
@@ -81,7 +85,7 @@ export function BookDetailDialog({
 
   return (
     <Dialog open={Boolean(contentId)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl">
         {error ? (
           <Alert variant="destructive">
             <AlertTitle>Unable to load book</AlertTitle>
@@ -96,12 +100,28 @@ export function BookDetailDialog({
         ) : (
           <>
             <DialogHeader>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={book.status} />
-                {book.downloaded && <Badge variant="outline">Downloaded</Badge>}
+              <div className="grid gap-5 sm:grid-cols-[112px_1fr]">
+                <BookCover
+                  title={book.title}
+                  coverUrl={book.cover_url}
+                  className="w-28"
+                />
+                <div className="flex min-w-0 flex-col gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={book.status} />
+                    {book.downloaded && <Badge variant="outline">Downloaded</Badge>}
+                    {book.bookmark_count > 0 && (
+                      <Badge variant="secondary">
+                        {formatNumber(book.bookmark_count)} highlights
+                      </Badge>
+                    )}
+                  </div>
+                  <DialogTitle className="font-serif text-3xl">
+                    {book.title}
+                  </DialogTitle>
+                  <DialogDescription>{book.author}</DialogDescription>
+                </div>
               </div>
-              <DialogTitle className="font-serif text-3xl">{book.title}</DialogTitle>
-              <DialogDescription>{book.author}</DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-6">
@@ -164,7 +184,7 @@ export function BookDetailDialog({
                 </Card>
               ) : null}
 
-              {(book.series || book.publisher || book.word_count) && (
+              {(book.series || book.publisher || book.word_count || book.language || book.isbn) && (
                 <div className="grid gap-3 text-sm sm:grid-cols-2">
                   {book.series && (
                     <div>
@@ -181,6 +201,18 @@ export function BookDetailDialog({
                       <p>{book.publisher}</p>
                     </div>
                   )}
+                  {book.language && (
+                    <div>
+                      <p className="text-muted-foreground">Language</p>
+                      <p>{book.language}</p>
+                    </div>
+                  )}
+                  {book.isbn && (
+                    <div>
+                      <p className="text-muted-foreground">ISBN</p>
+                      <p>{book.isbn}</p>
+                    </div>
+                  )}
                   {book.word_count && (
                     <div>
                       <p className="text-muted-foreground">Word count</p>
@@ -193,7 +225,13 @@ export function BookDetailDialog({
               {book.description && (
                 <>
                   <Separator />
-                  <FormattedText>{book.description}</FormattedText>
+                  <section className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <Info className="size-4 text-primary" />
+                      <h3 className="font-medium">Summary</h3>
+                    </div>
+                    <FormattedText>{book.description}</FormattedText>
+                  </section>
                 </>
               )}
 
@@ -257,6 +295,28 @@ export function BookDetailDialog({
                     </blockquote>
                   ))
                 )}
+              </section>
+
+              <Separator />
+              <section className="grid gap-3 text-sm sm:grid-cols-2">
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <Database className="mt-0.5 size-4 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-muted-foreground">Snapshot file</p>
+                    <p className="truncate font-medium">
+                      {book.data_source.snapshot_path}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <ShieldCheck className="mt-0.5 size-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-muted-foreground">Data mode</p>
+                    <p className="font-medium">
+                      {book.data_source.read_only ? "Local read-only copy" : "Writable"}
+                    </p>
+                  </div>
+                </div>
               </section>
             </div>
           </>
