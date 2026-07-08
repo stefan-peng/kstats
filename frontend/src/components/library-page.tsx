@@ -190,9 +190,6 @@ export function LibrarySection({
         <h2 id="library-heading" className="font-serif text-2xl font-semibold">
           Library
         </h2>
-        <p className="mt-2 text-muted-foreground">
-          Search and sort every book in your native Kobo library.
-        </p>
         {finishedMonth ? (
           <div className="mt-3 flex items-center gap-2">
             <Badge variant="secondary">

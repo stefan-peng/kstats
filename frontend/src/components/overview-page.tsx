@@ -90,25 +90,21 @@ export function OverviewPage({
     {
       label: "Reading time",
       value: formatDuration(dashboard.totals.reading_seconds),
-      detail: "Across tracked books",
       icon: Clock3,
     },
     {
       label: "Finished",
       value: formatNumber(dashboard.totals.finished),
-      detail: "Books completed",
       icon: BookCheck,
     },
     {
       label: "In progress",
       value: formatNumber(dashboard.totals.reading),
-      detail: "Books underway",
       icon: BookOpenText,
     },
     {
       label: "Library",
       value: formatNumber(dashboard.totals.library),
-      detail: "Books in Kobo library",
       icon: Library,
     },
   ]
@@ -120,9 +116,6 @@ export function OverviewPage({
           <h1 className="font-serif text-4xl font-semibold tracking-tight">
             Reading overview
           </h1>
-          <p className="mt-2 text-muted-foreground">
-            Your library, progress, and time spent reading.
-          </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <Button onClick={onRefresh} disabled={refreshing || !device?.connected}>
@@ -152,9 +145,6 @@ export function OverviewPage({
               </div>
               <metric.icon className="size-5 text-primary" />
             </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">{metric.detail}</p>
-            </CardContent>
           </Card>
         ))}
       </section>
@@ -163,7 +153,6 @@ export function OverviewPage({
         <Card>
           <CardHeader>
             <CardTitle>Reading status</CardTitle>
-            <CardDescription>Books across your native Kobo library</CardDescription>
           </CardHeader>
           <CardContent className="grid items-center gap-4 sm:grid-cols-[180px_1fr] xl:grid-cols-1 2xl:grid-cols-[180px_1fr]">
             <div className="h-44">
@@ -216,9 +205,6 @@ export function OverviewPage({
         <Card>
           <CardHeader>
             <CardTitle>Monthly completions</CardTitle>
-            <CardDescription>
-              Finished-book timestamps available on your Kobo
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {dashboard.monthly_completions.length === 0 ? (
@@ -291,12 +277,7 @@ export function OverviewPage({
       </section>
 
       <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The books waiting for your next page.
-          </p>
-        </div>
+        <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>
         {dashboard.continue_reading.length === 0 ? (
           <p className="rounded-lg border p-6 text-sm text-muted-foreground">
             No books are currently marked as in progress.
@@ -329,12 +310,7 @@ export function OverviewPage({
       </section>
 
       <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="font-serif text-2xl font-semibold">Most read</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Books with the most tracked reading time.
-          </p>
-        </div>
+        <h2 className="font-serif text-2xl font-semibold">Most read</h2>
         {dashboard.top_books.length === 0 ? (
           <p className="rounded-lg border p-6 text-sm text-muted-foreground">
             No reading time has been tracked yet.
