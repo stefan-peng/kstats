@@ -56,21 +56,11 @@ REMOVED_ACTIVITY_FILTER = """
 )
 """
 
-REMOVED_JOIN = f"""
-LEFT JOIN content AS removed
-  ON removed.ContentType = 6
- AND removed.MimeType IN ({','.join(repr(item) for item in BOOK_MIME_TYPES)})
- AND removed.___UserID = 'removed'
- AND {REMOVED_ACTIVITY_FILTER}
- AND (
-    (NULLIF(content.ISBN, '') IS NOT NULL AND content.ISBN = removed.ISBN)
-    OR (
-        {_title_expression('content')} != ''
-        AND {_title_expression('content')} = {_title_expression('removed')}
-        AND {_author_expression('content')} != ''
-        AND {_author_expression('content')} = {_author_expression('removed')}
-    )
- )
+REMOVED_JOIN = """
+LEFT JOIN kstats_removed_matches AS removed_match
+  ON removed_match.content_id = content.ContentID
+LEFT JOIN kstats_removed_activity AS removed
+  ON removed.ContentID = removed_match.removed_content_id
 """
 
 CONTENT_COUNT_SQL = "SELECT COUNT(*) FROM content"
@@ -154,6 +144,72 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         )
         connection.commit()
         return
+    connection.executescript(
+        """
+        DROP TABLE IF EXISTS temp.kstats_removed_matches;
+        DROP TABLE IF EXISTS temp.kstats_canonical_books;
+        DROP TABLE IF EXISTS temp.kstats_removed_activity;
+        """
+    )
+    connection.execute(
+        f"""
+        CREATE TEMP TABLE kstats_removed_activity AS
+        SELECT ContentID, ISBN, ReadStatus, TimeSpentReading, ___PercentRead,
+               DateLastRead, LastTimeFinishedReading, CurrentChapterEstimate,
+               RestOfBookEstimate,
+               {_title_expression('content')} AS normalized_title,
+               {_author_expression('content')} AS normalized_author
+        FROM content AS content
+        WHERE content.ContentType = 6
+          AND content.MimeType IN ({placeholders})
+          AND content.___UserID = 'removed'
+          AND {REMOVED_ACTIVITY_FILTER.replace('removed.', 'content.')}
+        """,
+        list(BOOK_MIME_TYPES),
+    )
+    connection.executescript(
+        """
+        CREATE UNIQUE INDEX temp.kstats_removed_content_id_idx
+            ON kstats_removed_activity(ContentID);
+        CREATE INDEX temp.kstats_removed_isbn_idx ON kstats_removed_activity(ISBN);
+        CREATE INDEX temp.kstats_removed_title_author_idx
+            ON kstats_removed_activity(normalized_title, normalized_author);
+        """
+    )
+    connection.execute(
+        f"""
+        CREATE TEMP TABLE kstats_canonical_books AS
+        SELECT ContentID, NULLIF(ISBN, '') AS ISBN,
+               {_title_expression('content')} AS normalized_title,
+               {_author_expression('content')} AS normalized_author
+        FROM content AS content
+        WHERE content.ContentType = 6
+          AND content.MimeType IN ({placeholders})
+          AND {CANONICAL_SOURCE_FILTER}
+        """,
+        list(BOOK_MIME_TYPES),
+    )
+    connection.executescript(
+        """
+        CREATE INDEX temp.kstats_canonical_isbn_idx ON kstats_canonical_books(ISBN);
+        CREATE INDEX temp.kstats_canonical_title_author_idx
+            ON kstats_canonical_books(normalized_title, normalized_author);
+        CREATE TEMP TABLE kstats_removed_matches AS
+        SELECT canonical.ContentID AS content_id, removed.ContentID AS removed_content_id
+        FROM kstats_canonical_books AS canonical
+        JOIN kstats_removed_activity AS removed ON removed.ISBN = canonical.ISBN
+        WHERE canonical.ISBN IS NOT NULL
+        UNION
+        SELECT canonical.ContentID, removed.ContentID
+        FROM kstats_canonical_books AS canonical
+        JOIN kstats_removed_activity AS removed
+          ON removed.normalized_title = canonical.normalized_title
+         AND removed.normalized_author = canonical.normalized_author
+        WHERE canonical.normalized_title != '' AND canonical.normalized_author != '';
+        CREATE INDEX temp.kstats_removed_matches_content_idx
+            ON kstats_removed_matches(content_id);
+        """
+    )
     connection.execute(
         f"""
         CREATE TABLE kstats_books AS
@@ -271,5 +327,12 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
     connection.execute(
         "INSERT INTO kstats_meta VALUES ('content_count', ?)",
         (content_count(connection),),
+    )
+    connection.executescript(
+        """
+        DROP TABLE temp.kstats_removed_matches;
+        DROP TABLE temp.kstats_canonical_books;
+        DROP TABLE temp.kstats_removed_activity;
+        """
     )
     connection.commit()
