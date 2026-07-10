@@ -84,6 +84,28 @@ def test_books_support_search_filters_and_sorting(client):
     assert payload["items"][0]["cover_url"] is None
 
 
+def test_books_sort_by_highlight_count(client):
+    descending = client.get(
+        "/api/books", params={"sort": "highlights", "direction": "desc"}
+    )
+    ascending = client.get(
+        "/api/books", params={"sort": "highlights", "direction": "asc"}
+    )
+
+    assert descending.status_code == 200
+    assert ascending.status_code == 200
+    assert [book["bookmark_count"] for book in descending.json()["items"]] == [
+        1,
+        0,
+        0,
+    ]
+    assert [book["bookmark_count"] for book in ascending.json()["items"]] == [
+        0,
+        0,
+        1,
+    ]
+
+
 def test_books_filter_by_finished_month(client):
     response = client.get("/api/books", params={"finished_month": "2026-05"})
 

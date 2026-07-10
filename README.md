@@ -38,6 +38,16 @@ npm run build --prefix frontend
 git diff --check
 ```
 
+On Windows, if `uv` or pytest reports access denied for its cache or temporary
+directory, give both tools fresh directories under the current user's temp
+folder. Using unique names avoids reusing a directory with stale permissions:
+
+```powershell
+$baseTemp = Join-Path $env:TEMP ("kstats-pytest-" + [guid]::NewGuid().ToString("N"))
+$env:UV_CACHE_DIR = Join-Path $env:TEMP ("kstats-uv-" + [guid]::NewGuid().ToString("N"))
+uv run pytest --basetemp $baseTemp -p no:cacheprovider
+```
+
 The source Kobo database is opened read-only and is never modified. Pocket
 articles and unsupported content types are excluded from book statistics.
 

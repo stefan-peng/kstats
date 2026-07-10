@@ -228,6 +228,7 @@ class Repository:
             "remaining_time": "remaining_seconds",
             "last_read": "date_last_read",
             "source": "source_type",
+            "highlights": "bookmark_count",
         }
         sort_column = sort_columns.get(sort, "date_last_read")
         sort_direction = "ASC" if direction == "asc" else "DESC"
