@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type KeyboardEvent } from "react"
 import {
   BookCheck,
   BookOpenText,
@@ -73,6 +73,14 @@ export function OverviewPage({
       ),
     [dashboard, durationGranularity],
   )
+  const activateBook = (
+    contentId: string,
+    event: KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onOpenBook(contentId)
+  }
 
   if (loading) {
     return <OverviewSkeleton />
@@ -276,6 +284,12 @@ export function OverviewPage({
                               ? "var(--primary)"
                               : "var(--chart-1)"
                           }
+                          stroke={
+                            finishedMonth === entry.month
+                              ? "var(--foreground)"
+                              : "transparent"
+                          }
+                          strokeWidth={finishedMonth === entry.month ? 2 : 0}
                           onClick={() => setFinishedMonth(entry.month)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
@@ -404,8 +418,12 @@ export function OverviewPage({
             {dashboard.continue_reading.slice(0, 3).map((book) => (
               <Card
                 key={book.content_id}
-                className="cursor-pointer transition-colors hover:bg-accent/30"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${book.title} by ${book.author}, ${book.percent_read}% complete, ${formatDuration(book.reading_seconds)} read`}
+                className="cursor-pointer transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 onClick={() => onOpenBook(book.content_id)}
+                onKeyDown={(event) => activateBook(book.content_id, event)}
               >
                 <CardHeader>
                   <CardTitle className="min-h-[3.5rem] line-clamp-2 font-serif text-xl">
@@ -439,8 +457,12 @@ export function OverviewPage({
             {dashboard.top_books.map((book) => (
               <Card
                 key={book.content_id}
-                className="cursor-pointer transition-colors hover:bg-accent/30"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${book.title} by ${book.author}, ${formatDuration(book.reading_seconds)} read, ${book.percent_read}% complete`}
+                className="cursor-pointer transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 onClick={() => onOpenBook(book.content_id)}
+                onKeyDown={(event) => activateBook(book.content_id, event)}
               >
                 <CardHeader>
                   <CardTitle className="min-h-[3.125rem] line-clamp-2 font-serif text-lg">

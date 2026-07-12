@@ -536,6 +536,7 @@ test("supports library search and sortable headers on the dashboard", async () =
   render(<App />)
   const bookHeader = (await screen.findAllByRole("columnheader", { name: /Book/ }))[0]
   expect(bookHeader).toHaveAttribute("aria-sort", "none")
+  expect(bookHeader.closest("tr")).not.toHaveClass("hover:bg-muted/50")
   await user.click(within(bookHeader).getByRole("button"))
   await waitFor(() => {
     expect(bookHeader).toHaveAttribute("aria-sort", "ascending")
@@ -561,7 +562,10 @@ test("supports library search and sortable headers on the dashboard", async () =
   })
   expect(await screen.findByText(/1 book; 3,375 custom\/catalog rows ignored/)).toBeVisible()
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  expect(row).toHaveClass("hover:bg-muted/50")
   expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
+  expect(screen.getByRole("combobox", { name: "Reading status" })).toBeVisible()
+  expect(screen.getByRole("combobox", { name: "Availability" })).toBeVisible()
 })
 
 test("shows active filters and requests Kobo-backed highlight filters", async () => {
@@ -617,6 +621,14 @@ test("filters the embedded library from a selected completion month", async () =
   })
   await user.click(month)
 
+  await waitFor(() => {
+    const selectedMonth = screen.getByRole("button", {
+      name: "May 2026, 1 book completed",
+    })
+    expect(selectedMonth).toHaveAttribute("stroke", "var(--foreground)")
+    expect(selectedMonth).toHaveAttribute("stroke-width", "2")
+  })
+
   expect(screen.getByText("Finished in May 2026")).toBeVisible()
   expect(statusFilter).toHaveTextContent("All statuses")
   await waitFor(() => {
@@ -644,7 +656,7 @@ test("opens book details from the embedded library", async () => {
   const user = userEvent.setup()
   render(<App />)
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
-  await user.click(row)
+  await user.click(within(row).getByRole("button", { name: "Open Current Book" }))
   const dialog = await screen.findByRole("dialog")
   expect(within(dialog).getByRole("heading", { name: "Current Book" })).toBeVisible()
   expect(within(dialog).getByText("Formatted introduction").tagName).toBe("STRONG")
@@ -663,6 +675,22 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).queryByText(/Reading sessions/)).not.toBeInTheDocument()
   expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
+})
+
+test("opens overview book cards with the keyboard", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+
+  const card = (await screen.findAllByRole("button", { name: /Open Current Book/ })).find(
+    (element) => element.getAttribute("data-slot") === "card",
+  )
+  expect(card).toBeDefined()
+  expect(card).toHaveAccessibleName(/Ada Reader.*42% complete.*1h 1m read/)
+
+  card?.focus()
+  await user.keyboard("{Enter}")
+
+  expect(await screen.findByRole("dialog")).toBeVisible()
 })
 
 test("opens book details from the most-read section", async () => {

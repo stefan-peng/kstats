@@ -151,7 +151,17 @@ export function LibrarySection({
               className="w-10"
             />
             <div className="min-w-0">
-              <p className="max-w-80 truncate font-medium">{row.original.title}</p>
+              <button
+                type="button"
+                aria-label={`Open ${row.original.title}`}
+                className="block max-w-80 truncate text-left font-medium hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenBook(row.original.content_id)
+                }}
+              >
+                {row.original.title}
+              </button>
               <p className="max-w-80 truncate text-xs text-muted-foreground">
                 {row.original.author}
               </p>
@@ -315,7 +325,7 @@ export function LibrarySection({
           setStatus(value)
           setPage(1)
         }}>
-          <SelectTrigger className="h-9 w-full">
+          <SelectTrigger aria-label="Reading status" className="h-9 w-full">
             <SelectValue placeholder="Reading status" />
           </SelectTrigger>
           <SelectContent>
@@ -331,7 +341,7 @@ export function LibrarySection({
           setAvailability(value)
           setPage(1)
         }}>
-          <SelectTrigger className="h-9 w-full">
+          <SelectTrigger aria-label="Availability" className="h-9 w-full">
             <SelectValue placeholder="Availability" />
           </SelectTrigger>
           <SelectContent>
@@ -409,14 +419,15 @@ export function LibrarySection({
           {activeFilters.map((filter) => (
             <Badge key={filter.label} variant="secondary" className="gap-1">
               {filter.label}
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 aria-label={`Clear ${filter.label}`}
                 onClick={filter.clear}
-                className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="-mr-1 rounded-full"
               >
                 <X className="size-3" aria-hidden="true" />
-              </button>
+              </Button>
             </Badge>
           ))}
         </div>
@@ -495,7 +506,7 @@ export function LibrarySection({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="cursor-pointer"
+                    className="cursor-pointer hover:bg-muted/50"
                     onClick={() => onOpenBook(row.original.content_id)}
                   >
                     {row.getVisibleCells().map((cell) => (
