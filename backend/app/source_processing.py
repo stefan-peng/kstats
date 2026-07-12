@@ -6,11 +6,17 @@ BOOK_MIME_TYPES = (
     "application/epub+zip",
     "application/pdf",
 )
+DERIVED_SCHEMA_VERSION = 2
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
 
 def _title_expression(alias: str) -> str:
+    title = f"COALESCE(NULLIF({alias}.Title, ''), NULLIF({alias}.BookTitle, ''), '')"
+    return f"LOWER(TRIM({title}))"
+
+
+def _title_prefix_expression(alias: str) -> str:
     title = f"COALESCE(NULLIF({alias}.Title, ''), NULLIF({alias}.BookTitle, ''), '')"
     return (
         "LOWER(TRIM(CASE "
@@ -50,17 +56,7 @@ REMOVED_ACTIVITY_FILTER = """
     COALESCE(removed.ReadStatus, 0) != 0
     OR COALESCE(removed.TimeSpentReading, 0) > 0
     OR COALESCE(removed.___PercentRead, 0) > 0
-    OR removed.DateLastRead IS NOT NULL
-    OR removed.LastTimeStartedReading IS NOT NULL
-    OR removed.LastTimeFinishedReading IS NOT NULL
 )
-"""
-
-REMOVED_JOIN = """
-LEFT JOIN kstats_removed_matches AS removed_match
-  ON removed_match.content_id = content.ContentID
-LEFT JOIN kstats_removed_activity AS removed
-  ON removed.ContentID = removed_match.removed_content_id
 """
 
 CONTENT_COUNT_SQL = "SELECT COUNT(*) FROM content"
@@ -79,10 +75,16 @@ def derived_tables_current(connection: sqlite3.Connection) -> bool:
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kstats_meta'"
     ).fetchone():
         return False
-    row = connection.execute(
-        "SELECT value FROM kstats_meta WHERE key = 'content_count'"
-    ).fetchone()
-    return row is not None and int(row[0]) == content_count(connection)
+    rows = dict(
+        connection.execute(
+            "SELECT key, value FROM kstats_meta "
+            "WHERE key IN ('content_count', 'schema_version')"
+        ).fetchall()
+    )
+    return (
+        rows.get("schema_version") == DERIVED_SCHEMA_VERSION
+        and rows.get("content_count") == content_count(connection)
+    )
 
 
 def ensure_derived_tables(connection: sqlite3.Connection) -> None:
@@ -92,6 +94,17 @@ def ensure_derived_tables(connection: sqlite3.Connection) -> None:
 
 def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
     placeholders = ",".join("?" for _ in BOOK_MIME_TYPES)
+    canonical_state_is_authoritative = """
+    (
+        COALESCE(content.ReadStatus, 0) != 0
+        OR COALESCE(content.TimeSpentReading, 0) > 0
+        OR COALESCE(content.___PercentRead, 0) > 0
+        OR (
+            content.DateLastRead IS NOT NULL
+            AND content.DateLastRead >= COALESCE(removed.DateLastRead, '')
+        )
+    )
+    """
     connection.executescript(
         """
         DROP TABLE IF EXISTS kstats_books;
@@ -103,7 +116,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'content'"
     ).fetchone():
         connection.executescript(
-            """
+            f"""
             CREATE TABLE kstats_books (
                 content_id TEXT PRIMARY KEY,
                 title TEXT,
@@ -140,6 +153,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
             INSERT INTO kstats_source_summary VALUES (0, 0, 0, 0, 0);
             CREATE TABLE kstats_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
             INSERT INTO kstats_meta VALUES ('content_count', 0);
+            INSERT INTO kstats_meta VALUES ('schema_version', {DERIVED_SCHEMA_VERSION});
             """
         )
         connection.commit()
@@ -147,6 +161,11 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
         DROP TABLE IF EXISTS temp.kstats_removed_matches;
+        DROP TABLE IF EXISTS temp.kstats_removed_candidates;
+        DROP TABLE IF EXISTS temp.kstats_removed_owned_candidates;
+        DROP TABLE IF EXISTS temp.kstats_removed_aggregates;
+        DROP TABLE IF EXISTS temp.kstats_removed_state;
+        DROP TABLE IF EXISTS temp.kstats_effective_state;
         DROP TABLE IF EXISTS temp.kstats_canonical_books;
         DROP TABLE IF EXISTS temp.kstats_removed_activity;
         """
@@ -158,6 +177,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
                DateLastRead, LastTimeFinishedReading, CurrentChapterEstimate,
                RestOfBookEstimate,
                {_title_expression('content')} AS normalized_title,
+               {_title_prefix_expression('content')} AS normalized_title_prefix,
                {_author_expression('content')} AS normalized_author
         FROM content AS content
         WHERE content.ContentType = 6
@@ -174,13 +194,16 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         CREATE INDEX temp.kstats_removed_isbn_idx ON kstats_removed_activity(ISBN);
         CREATE INDEX temp.kstats_removed_title_author_idx
             ON kstats_removed_activity(normalized_title, normalized_author);
+        CREATE INDEX temp.kstats_removed_prefix_author_idx
+            ON kstats_removed_activity(normalized_title_prefix, normalized_author);
         """
     )
     connection.execute(
         f"""
         CREATE TEMP TABLE kstats_canonical_books AS
-        SELECT ContentID, NULLIF(ISBN, '') AS ISBN,
+        SELECT ContentID, NULLIF(TRIM(ISBN), '') AS ISBN,
                {_title_expression('content')} AS normalized_title,
+               {_title_prefix_expression('content')} AS normalized_title_prefix,
                {_author_expression('content')} AS normalized_author
         FROM content AS content
         WHERE content.ContentType = 6
@@ -194,21 +217,150 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         CREATE INDEX temp.kstats_canonical_isbn_idx ON kstats_canonical_books(ISBN);
         CREATE INDEX temp.kstats_canonical_title_author_idx
             ON kstats_canonical_books(normalized_title, normalized_author);
-        CREATE TEMP TABLE kstats_removed_matches AS
-        SELECT canonical.ContentID AS content_id, removed.ContentID AS removed_content_id
+        CREATE INDEX temp.kstats_canonical_prefix_author_idx
+            ON kstats_canonical_books(normalized_title_prefix, normalized_author);
+        CREATE TEMP TABLE kstats_removed_candidates AS
+        SELECT content_id, removed_content_id, MAX(match_quality) AS match_quality
+        FROM (
+        SELECT canonical.ContentID AS content_id, removed.ContentID AS removed_content_id,
+               3 AS match_quality
         FROM kstats_canonical_books AS canonical
-        JOIN kstats_removed_activity AS removed ON removed.ISBN = canonical.ISBN
+        JOIN kstats_removed_activity AS removed
+          ON NULLIF(TRIM(removed.ISBN), '') = canonical.ISBN
         WHERE canonical.ISBN IS NOT NULL
-        UNION
-        SELECT canonical.ContentID, removed.ContentID
+        UNION ALL
+        SELECT canonical.ContentID, removed.ContentID, 2
         FROM kstats_canonical_books AS canonical
         JOIN kstats_removed_activity AS removed
           ON removed.normalized_title = canonical.normalized_title
          AND removed.normalized_author = canonical.normalized_author
-        WHERE canonical.normalized_title != '' AND canonical.normalized_author != '';
+        WHERE canonical.normalized_title != '' AND canonical.normalized_author != ''
+        UNION ALL
+        SELECT canonical.ContentID, removed.ContentID, 1
+        FROM kstats_canonical_books AS canonical
+        JOIN kstats_removed_activity AS removed
+          ON removed.normalized_author = canonical.normalized_author
+         AND (
+              (canonical.normalized_title = canonical.normalized_title_prefix
+               AND removed.normalized_title != removed.normalized_title_prefix
+               AND canonical.normalized_title = removed.normalized_title_prefix)
+              OR
+              (removed.normalized_title = removed.normalized_title_prefix
+               AND canonical.normalized_title != canonical.normalized_title_prefix
+               AND removed.normalized_title = canonical.normalized_title_prefix)
+         )
+        WHERE canonical.normalized_title != '' AND canonical.normalized_author != ''
+        )
+        GROUP BY content_id, removed_content_id;
+        CREATE TEMP TABLE kstats_removed_owned_candidates AS
+        SELECT candidate.content_id, candidate.removed_content_id,
+               candidate.match_quality
+        FROM kstats_removed_candidates AS candidate
+        WHERE candidate.match_quality = (
+                SELECT MAX(peer.match_quality)
+                FROM kstats_removed_candidates AS peer
+                WHERE peer.removed_content_id = candidate.removed_content_id
+              )
+          AND 1 = (
+                SELECT COUNT(*)
+                FROM kstats_removed_candidates AS peer
+                WHERE peer.removed_content_id = candidate.removed_content_id
+                  AND peer.match_quality = candidate.match_quality
+              );
+        CREATE TEMP TABLE kstats_removed_matches AS
+        SELECT candidate.content_id, candidate.removed_content_id
+        FROM kstats_removed_owned_candidates AS candidate
+        WHERE (
+                candidate.match_quality > 1
+                OR (
+                    1 = (
+                        SELECT COUNT(*)
+                        FROM kstats_removed_owned_candidates AS peer
+                        WHERE peer.content_id = candidate.content_id
+                          AND peer.match_quality = 1
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM kstats_removed_owned_candidates AS peer
+                        WHERE peer.content_id = candidate.content_id
+                          AND peer.match_quality > 1
+                    )
+                )
+              );
         CREATE INDEX temp.kstats_removed_matches_content_idx
             ON kstats_removed_matches(content_id);
+        CREATE TEMP TABLE kstats_removed_aggregates AS
+        SELECT matches.content_id,
+               COUNT(*) AS removed_count,
+               MAX(MAX(COALESCE(removed.TimeSpentReading, 0), 0)) AS reading_seconds
+        FROM kstats_removed_matches AS matches
+        JOIN kstats_removed_activity AS removed
+          ON removed.ContentID = matches.removed_content_id
+        GROUP BY matches.content_id;
+        CREATE TEMP TABLE kstats_removed_state AS
+        SELECT * FROM (
+            SELECT matches.content_id,
+                   removed.*,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY matches.content_id
+                       ORDER BY
+                           CASE WHEN COALESCE(removed.ReadStatus, 0) != 0
+                                  OR COALESCE(removed.TimeSpentReading, 0) > 0
+                                  OR COALESCE(removed.___PercentRead, 0) > 0
+                                THEN 1 ELSE 0 END DESC,
+                           COALESCE(removed.DateLastRead, '') DESC,
+                           COALESCE(removed.LastTimeFinishedReading, '') DESC,
+                           removed.ContentID DESC
+                   ) AS state_rank
+            FROM kstats_removed_matches AS matches
+            JOIN kstats_removed_activity AS removed
+              ON removed.ContentID = matches.removed_content_id
+        )
+        WHERE state_rank = 1;
         """
+    )
+    connection.execute(
+        f"""
+        CREATE TEMP TABLE kstats_effective_state AS
+        WITH chosen AS (
+            SELECT content.ContentID AS content_id,
+                   CASE WHEN {canonical_state_is_authoritative}
+                        THEN COALESCE(content.ReadStatus, 0)
+                        ELSE COALESCE(removed.ReadStatus, content.ReadStatus, 0) END AS read_status,
+                   CASE WHEN {canonical_state_is_authoritative}
+                        THEN COALESCE(content.___PercentRead, 0)
+                        ELSE COALESCE(removed.___PercentRead, content.___PercentRead, 0) END AS percent_read,
+                   CASE WHEN {canonical_state_is_authoritative}
+                        THEN content.DateLastRead
+                        ELSE COALESCE(removed.DateLastRead, content.DateLastRead) END AS date_last_read,
+                   CASE WHEN {canonical_state_is_authoritative}
+                        THEN content.LastTimeFinishedReading
+                        ELSE COALESCE(removed.LastTimeFinishedReading, content.LastTimeFinishedReading) END AS finished_at,
+                   CASE WHEN {canonical_state_is_authoritative}
+                        THEN COALESCE(content.CurrentChapterEstimate, 0)
+                        ELSE COALESCE(removed.CurrentChapterEstimate, content.CurrentChapterEstimate, 0) END AS current_estimate,
+                   CASE WHEN {canonical_state_is_authoritative}
+                        THEN COALESCE(content.RestOfBookEstimate, 0)
+                        ELSE COALESCE(removed.RestOfBookEstimate, content.RestOfBookEstimate, 0) END AS rest_estimate
+            FROM content AS content
+            LEFT JOIN kstats_removed_state AS removed
+              ON removed.content_id = content.ContentID
+            WHERE content.ContentType = 6
+              AND content.MimeType IN ({placeholders})
+              AND {CANONICAL_SOURCE_FILTER}
+        )
+        SELECT content_id,
+               read_status,
+               MIN(MAX(COALESCE(percent_read, 0), 0), 100) AS percent_read,
+               date_last_read,
+               finished_at,
+               CASE WHEN read_status = 1 THEN MAX(COALESCE(current_estimate, 0), 0) ELSE 0 END
+                   AS current_chapter_estimate_seconds,
+               CASE WHEN read_status = 1 THEN MAX(COALESCE(rest_estimate, 0), 0) ELSE 0 END
+                   AS rest_of_book_estimate_seconds
+        FROM chosen
+        """,
+        list(BOOK_MIME_TYPES),
     )
     connection.execute(
         f"""
@@ -217,27 +369,15 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
             content.ContentID AS content_id,
             COALESCE(NULLIF(content.Title, ''), NULLIF(content.BookTitle, ''), 'Untitled') AS title,
             COALESCE(NULLIF(content.Attribution, ''), 'Unknown author') AS author,
-            MAX(COALESCE(content.ReadStatus, 0), COALESCE(MAX(removed.ReadStatus), 0)) AS read_status,
-            MAX(MAX(COALESCE(content.TimeSpentReading, 0), 0), COALESCE(MAX(removed.TimeSpentReading), 0)) AS reading_seconds,
-            MIN(MAX(MAX(COALESCE(content.___PercentRead, 0), 0), COALESCE(MAX(removed.___PercentRead), 0)), 100) AS percent_read,
-            NULLIF(MAX(COALESCE(content.DateLastRead, ''), COALESCE(MAX(removed.DateLastRead), '')), '') AS date_last_read,
-            NULLIF(MAX(COALESCE(content.LastTimeFinishedReading, ''), COALESCE(MAX(removed.LastTimeFinishedReading), '')), '') AS finished_at,
-            CASE
-                WHEN MAX(COALESCE(content.ReadStatus, 0), COALESCE(MAX(removed.ReadStatus), 0)) = 1
-                THEN MAX(MAX(COALESCE(content.CurrentChapterEstimate, 0), 0), COALESCE(MAX(removed.CurrentChapterEstimate), 0))
-                ELSE 0
-            END AS current_chapter_estimate_seconds,
-            CASE
-                WHEN MAX(COALESCE(content.ReadStatus, 0), COALESCE(MAX(removed.ReadStatus), 0)) = 1
-                THEN MAX(MAX(COALESCE(content.RestOfBookEstimate, 0), 0), COALESCE(MAX(removed.RestOfBookEstimate), 0))
-                ELSE 0
-            END AS rest_of_book_estimate_seconds,
-            CASE
-                WHEN MAX(COALESCE(content.ReadStatus, 0), COALESCE(MAX(removed.ReadStatus), 0)) = 1
-                THEN MAX(MAX(COALESCE(content.CurrentChapterEstimate, 0), 0), COALESCE(MAX(removed.CurrentChapterEstimate), 0))
-                    + MAX(MAX(COALESCE(content.RestOfBookEstimate, 0), 0), COALESCE(MAX(removed.RestOfBookEstimate), 0))
-                ELSE 0
-            END AS remaining_seconds,
+            state.read_status,
+            MAX(MAX(COALESCE(content.TimeSpentReading, 0), 0), COALESCE(history.reading_seconds, 0)) AS reading_seconds,
+            state.percent_read,
+            NULLIF(state.date_last_read, '') AS date_last_read,
+            NULLIF(state.finished_at, '') AS finished_at,
+            state.current_chapter_estimate_seconds,
+            state.rest_of_book_estimate_seconds,
+            state.current_chapter_estimate_seconds + state.rest_of_book_estimate_seconds
+                AS remaining_seconds,
             CASE WHEN lower(CAST(content.IsDownloaded AS TEXT)) IN ('1', 'true') THEN 1 ELSE 0 END AS downloaded,
             CASE WHEN COALESCE(content.WordCount, -1) > 0 THEN content.WordCount ELSE NULL END AS word_count,
             NULLIF(content.Series, '') AS series,
@@ -249,7 +389,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
             NULLIF(content.ImageId, '') AS image_id,
             content.MimeType AS mime_type,
             {SOURCE_TYPE_EXPRESSION} AS source_type,
-            COUNT(removed.ContentID) AS merged_removed_count,
+            COALESCE(history.removed_count, 0) AS merged_removed_count,
             (
                 SELECT COUNT(*)
                 FROM Bookmark
@@ -257,11 +397,12 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
                   AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT))) IN ('0', 'false')
             ) AS bookmark_count
         FROM content AS content
-        {REMOVED_JOIN}
+        JOIN kstats_effective_state AS state ON state.content_id = content.ContentID
+        LEFT JOIN kstats_removed_aggregates AS history
+          ON history.content_id = content.ContentID
         WHERE content.ContentType = 6
           AND content.MimeType IN ({placeholders})
           AND {CANONICAL_SOURCE_FILTER}
-        GROUP BY content.ContentID
         """,
         list(BOOK_MIME_TYPES),
     )
@@ -328,9 +469,18 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         "INSERT INTO kstats_meta VALUES ('content_count', ?)",
         (content_count(connection),),
     )
+    connection.execute(
+        "INSERT INTO kstats_meta VALUES ('schema_version', ?)",
+        (DERIVED_SCHEMA_VERSION,),
+    )
     connection.executescript(
         """
         DROP TABLE temp.kstats_removed_matches;
+        DROP TABLE temp.kstats_removed_candidates;
+        DROP TABLE temp.kstats_removed_owned_candidates;
+        DROP TABLE temp.kstats_removed_aggregates;
+        DROP TABLE temp.kstats_removed_state;
+        DROP TABLE temp.kstats_effective_state;
         DROP TABLE temp.kstats_canonical_books;
         DROP TABLE temp.kstats_removed_activity;
         """

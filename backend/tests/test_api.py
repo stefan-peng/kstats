@@ -354,6 +354,309 @@ def test_removed_history_merges_by_colon_title_prefix_and_author(client, setting
     assert dashboard["source_summary"]["merged_removed_history"] == 1
 
 
+def test_current_reading_state_wins_over_stale_removed_state(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                LastTimeFinishedReading, CurrentChapterEstimate,
+                RestOfBookEstimate, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            [
+                (
+                    "current-state",
+                    "American Steam Locomotives",
+                    "William L. Withuhn",
+                    1,
+                    6130,
+                    90,
+                    "2026-07-12T02:07:32Z",
+                    None,
+                    1302,
+                    2313,
+                    "test-user",
+                ),
+                (
+                    "removed-state",
+                    "American Steam Locomotives: Design and Development, 1880-1960",
+                    "William L. Withuhn",
+                    2,
+                    14,
+                    43,
+                    "2026-06-24T21:02:51Z",
+                    "2026-06-24T21:02:51Z",
+                    1584,
+                    32304,
+                    "removed",
+                ),
+            ],
+        )
+
+    detail = client.get("/api/book", params={"content_id": "current-state"}).json()
+
+    assert detail["status"] == "reading"
+    assert detail["percent_read"] == 90
+    assert detail["date_last_read"] == "2026-07-12T02:07:32Z"
+    assert detail["finished_at"] is None
+    assert detail["reading_seconds"] == 6130
+    assert detail["current_chapter_estimate_seconds"] == 1302
+    assert detail["rest_of_book_estimate_seconds"] == 2313
+    assert detail["remaining_seconds"] == 3615
+
+
+def test_timestamp_only_removed_record_is_not_reading_history(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                LastTimeStartedReading, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', 'Catalog Timestamp',
+                      'Same Author', 0, 0, 0, ?, ?, 1, ?)
+            """,
+            [
+                ("canonical-timestamp", None, None, "test-user"),
+                (
+                    "removed-timestamp",
+                    "2026-06-24T20:36:59Z",
+                    "2026-06-24T20:36:59Z",
+                    "removed",
+                ),
+            ],
+        )
+
+    detail = client.get(
+        "/api/book", params={"content_id": "canonical-timestamp"}
+    ).json()
+    summary = client.get("/api/dashboard").json()["source_summary"]
+
+    assert detail["status"] == "unread"
+    assert detail["date_last_read"] is None
+    assert summary["removed_with_activity"] == 0
+    assert summary["merged_removed_history"] == 0
+
+
+def test_newer_canonical_unread_state_wins_over_removed_history(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                LastTimeFinishedReading, CurrentChapterEstimate,
+                RestOfBookEstimate, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', 'Reset Book',
+                      'Same Author', ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            [
+                (
+                    "canonical-reset",
+                    0,
+                    0,
+                    0,
+                    "2026-07-12T12:00:00Z",
+                    None,
+                    0,
+                    0,
+                    "test-user",
+                ),
+                (
+                    "removed-reset",
+                    2,
+                    500,
+                    100,
+                    "2026-06-20T12:00:00Z",
+                    "2026-06-20T12:00:00Z",
+                    100,
+                    200,
+                    "removed",
+                ),
+            ],
+        )
+
+    detail = client.get("/api/book", params={"content_id": "canonical-reset"}).json()
+
+    assert detail["status"] == "unread"
+    assert detail["percent_read"] == 0
+    assert detail["date_last_read"] == "2026-07-12T12:00:00Z"
+    assert detail["finished_at"] is None
+    assert detail["remaining_seconds"] == 0
+    assert detail["reading_seconds"] == 500
+
+
+def test_newest_removed_record_supplies_one_coherent_state(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                LastTimeFinishedReading, CurrentChapterEstimate,
+                RestOfBookEstimate, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', 'Repeated Import',
+                      'Same Author', ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            [
+                (
+                    "canonical-repeated",
+                    0,
+                    0,
+                    0,
+                    None,
+                    None,
+                    0,
+                    0,
+                    "test-user",
+                ),
+                (
+                    "removed-older",
+                    2,
+                    900,
+                    100,
+                    "2026-06-20T12:00:00Z",
+                    "2026-06-20T12:00:00Z",
+                    0,
+                    0,
+                    "removed",
+                ),
+                (
+                    "removed-newer",
+                    1,
+                    500,
+                    40,
+                    "2026-06-21T12:00:00Z",
+                    None,
+                    100,
+                    200,
+                    "removed",
+                ),
+            ],
+        )
+
+    detail = client.get(
+        "/api/book", params={"content_id": "canonical-repeated"}
+    ).json()
+
+    assert detail["status"] == "reading"
+    assert detail["percent_read"] == 40
+    assert detail["date_last_read"] == "2026-06-21T12:00:00Z"
+    assert detail["finished_at"] is None
+    assert detail["current_chapter_estimate_seconds"] == 100
+    assert detail["rest_of_book_estimate_seconds"] == 200
+    assert detail["remaining_seconds"] == 300
+    assert detail["reading_seconds"] == 900
+
+
+def test_ambiguous_subtitle_prefix_does_not_merge_history(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                CurrentChapterEstimate, RestOfBookEstimate, IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', ?, 'Same Author', ?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            [
+                ("canonical-series", "Chronicles", 0, 0, 0, None, 0, 0, "test-user"),
+                (
+                    "removed-volume-one",
+                    "Chronicles: Volume One",
+                    1,
+                    500,
+                    25,
+                    "2026-06-20T12:00:00Z",
+                    100,
+                    200,
+                    "removed",
+                ),
+                (
+                    "removed-volume-two",
+                    "Chronicles: Volume Two",
+                    1,
+                    900,
+                    50,
+                    "2026-06-21T12:00:00Z",
+                    300,
+                    400,
+                    "removed",
+                ),
+            ],
+        )
+
+    detail = client.get("/api/book", params={"content_id": "canonical-series"}).json()
+
+    assert detail["status"] == "unread"
+    assert detail["reading_seconds"] == 0
+    assert detail["remaining_seconds"] == 0
+    assert client.get("/api/dashboard").json()["source_summary"][
+        "merged_removed_history"
+    ] == 0
+
+
+def test_removed_history_is_not_assigned_to_multiple_canonical_books(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO content (
+                ContentID, ContentType, MimeType, Title, Attribution, ISBN,
+                ReadStatus, TimeSpentReading, ___PercentRead, DateLastRead,
+                IsDownloaded, ___UserID
+            ) VALUES (?, 6, 'application/epub+zip', 'Duplicate Edition',
+                      'Same Author', 'same-isbn', ?, ?, ?, ?, 1, ?)
+            """,
+            [
+                ("canonical-one", 0, 0, 0, None, "test-user"),
+                ("canonical-two", 0, 0, 0, None, "test-user"),
+                (
+                    "removed-duplicate",
+                    1,
+                    700,
+                    30,
+                    "2026-06-20T12:00:00Z",
+                    "removed",
+                ),
+            ],
+        )
+
+    first = client.get("/api/book", params={"content_id": "canonical-one"}).json()
+    second = client.get("/api/book", params={"content_id": "canonical-two"}).json()
+
+    assert first["status"] == second["status"] == "unread"
+    assert first["reading_seconds"] == second["reading_seconds"] == 0
+    assert client.get("/api/dashboard").json()["source_summary"][
+        "merged_removed_history"
+    ] == 0
+
+
+def test_outdated_derived_schema_is_rebuilt(client, settings):
+    assert client.get("/api/book", params={"content_id": "book-reading"}).json()[
+        "remaining_seconds"
+    ] == 15567
+
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute(
+            "UPDATE content SET CurrentChapterEstimate = 60, RestOfBookEstimate = 120 "
+            "WHERE ContentID = 'book-reading'"
+        )
+        connection.execute(
+            "UPDATE kstats_meta SET value = 1 WHERE key = 'schema_version'"
+        )
+
+    detail = client.get("/api/book", params={"content_id": "book-reading"}).json()
+
+    assert detail["remaining_seconds"] == 180
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        version = connection.execute(
+            "SELECT value FROM kstats_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+    assert version == 2
+
+
 def test_books_sort_by_in_progress_remaining_time(client):
     response = client.get(
         "/api/books",
