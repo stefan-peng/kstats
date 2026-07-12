@@ -294,10 +294,12 @@ export function OverviewPage({
                 onClick={() => onOpenBook(book.content_id)}
               >
                 <CardHeader>
-                  <CardTitle className="line-clamp-2 font-serif text-xl">
+                  <CardTitle className="min-h-[3.5rem] line-clamp-2 font-serif text-xl">
                     {book.title}
                   </CardTitle>
-                  <CardDescription>{book.author}</CardDescription>
+                  <CardDescription className="min-h-5 line-clamp-1">
+                    {book.author}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <Progress value={book.percent_read} />
@@ -327,10 +329,10 @@ export function OverviewPage({
                 onClick={() => onOpenBook(book.content_id)}
               >
                 <CardHeader>
-                  <CardTitle className="line-clamp-2 font-serif text-lg">
+                  <CardTitle className="min-h-[3.125rem] line-clamp-2 font-serif text-lg">
                     {book.title}
                   </CardTitle>
-                  <CardDescription className="line-clamp-1">
+                  <CardDescription className="min-h-5 line-clamp-1">
                     {book.author}
                   </CardDescription>
                 </CardHeader>
