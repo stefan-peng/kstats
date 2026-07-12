@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -17,21 +17,29 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const previousConnectedRef = useRef<boolean | null>(null)
+  const importInFlightRef = useRef(false)
+  const statusCheckInFlightRef = useRef<Promise<void> | null>(null)
+  const refreshVersionRef = useRef(0)
 
   const refreshDeviceStatus = useCallback(async () => {
     const status = await api.deviceStatus()
+    previousConnectedRef.current = status.connected
     setDevice(status)
     return status
   }, [])
 
   const load = useCallback(async () => {
+    const refreshVersion = refreshVersionRef.current
     const status = await refreshDeviceStatus()
     if (!status.snapshot_available) {
       setDashboard(null)
       setError("No Kobo snapshot is available yet.")
       return
     }
-    setDashboard(await api.dashboard())
+    const nextDashboard = await api.dashboard()
+    if (refreshVersionRef.current !== refreshVersion) return
+    setDashboard(nextDashboard)
     setError(null)
   }, [refreshDeviceStatus])
 
@@ -41,35 +49,64 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [load])
 
-  useEffect(() => {
-    const checkDeviceStatus = () => {
-      void refreshDeviceStatus().catch(() => undefined)
-    }
-    const interval = window.setInterval(checkDeviceStatus, DEVICE_STATUS_POLL_MS)
-    window.addEventListener("focus", checkDeviceStatus)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener("focus", checkDeviceStatus)
-    }
-  }, [refreshDeviceStatus])
+  const refresh = useCallback(async () => {
+    if (importInFlightRef.current) return
 
-  async function refresh() {
+    refreshVersionRef.current += 1
+    importInFlightRef.current = true
     setRefreshing(true)
     try {
       const status = await api.refresh()
+      previousConnectedRef.current = status.connected
       setDevice(status)
       setDashboard(await api.dashboard())
       setError(null)
       toast.success("Kobo snapshot refreshed")
+      return true
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Refresh failed"
       await refreshDeviceStatus().catch(() => undefined)
       setError(message)
       toast.error(message)
+      return false
     } finally {
+      importInFlightRef.current = false
       setRefreshing(false)
     }
-  }
+  }, [refreshDeviceStatus])
+
+  const checkDeviceStatus = useCallback(() => {
+    if (statusCheckInFlightRef.current) return statusCheckInFlightRef.current
+
+    const check = (async () => {
+      const wasDisconnected = previousConnectedRef.current === false
+      const status = await refreshDeviceStatus()
+
+      if (wasDisconnected && status.connected) {
+        const refreshed = await refresh()
+        if (refreshed === false) previousConnectedRef.current = false
+      }
+    })()
+    const trackedCheck = check.finally(() => {
+      if (statusCheckInFlightRef.current === trackedCheck) {
+        statusCheckInFlightRef.current = null
+      }
+    })
+    statusCheckInFlightRef.current = trackedCheck
+    return trackedCheck
+  }, [refresh, refreshDeviceStatus])
+
+  useEffect(() => {
+    const check = () => {
+      void checkDeviceStatus().catch(() => undefined)
+    }
+    const interval = window.setInterval(check, DEVICE_STATUS_POLL_MS)
+    window.addEventListener("focus", check)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", check)
+    }
+  }, [checkDeviceStatus])
 
   return (
     <TooltipProvider>

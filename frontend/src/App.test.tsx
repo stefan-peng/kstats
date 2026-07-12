@@ -256,6 +256,213 @@ test("updates Kobo connection status when a disconnected Kobo is rechecked", asy
   expect(screen.queryAllByText("Kobo connected")).toHaveLength(0)
 })
 
+test("imports Kobo data when a disconnected Kobo reconnects", async () => {
+  let statusCalls = 0
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        statusCalls += 1
+        return Response.json({
+          connected: statusCalls > 1,
+          snapshot_available: statusCalls > 1,
+          imported_at: statusCalls > 1 ? "2026-06-18T13:00:00Z" : null,
+          source: statusCalls > 1 ? "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite" : null,
+        })
+      }
+      if (url.includes("/api/import")) {
+        expect(init).toEqual({ method: "POST" })
+        return Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T13:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/dashboard")) return Response.json(dashboard)
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  render(<App />)
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
+
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"))
+  })
+
+  await waitFor(() => {
+    expect(fetch).toHaveBeenCalledWith("/api/import", { method: "POST" })
+  })
+  expect(await screen.findByText("Kobo connected")).toBeVisible()
+  expect(await screen.findByRole("heading", { name: "Reading overview" })).toBeVisible()
+})
+
+test("retries a reconnect import that fails while the Kobo is becoming available", async () => {
+  let statusCalls = 0
+  let importCalls = 0
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        statusCalls += 1
+        return Response.json({
+          connected: statusCalls > 1,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/import")) {
+        importCalls += 1
+        if (importCalls === 1) {
+          return Response.json({ detail: "Kobo database is not ready" }, { status: 503 })
+        }
+        return Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T13:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/dashboard")) return Response.json(dashboard)
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  render(<App />)
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
+
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"))
+  })
+  await waitFor(() => expect(importCalls).toBe(1))
+
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"))
+  })
+  await waitFor(() => expect(importCalls).toBe(2))
+})
+
+test("serializes overlapping reconnect status checks", async () => {
+  let statusCalls = 0
+  let importCalls = 0
+  let resolveReconnectStatus!: (response: Response) => void
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        statusCalls += 1
+        if (statusCalls === 1) {
+          return Promise.resolve(
+            Response.json({
+              connected: false,
+              snapshot_available: true,
+              imported_at: "2026-06-18T12:00:00Z",
+              source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+            }),
+          )
+        }
+        return new Promise((resolve) => {
+          resolveReconnectStatus = resolve
+        })
+      }
+      if (url.includes("/api/import")) {
+        importCalls += 1
+        return Promise.resolve(
+          Response.json({
+            connected: true,
+            snapshot_available: true,
+            imported_at: "2026-06-18T13:00:00Z",
+            source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+          }),
+        )
+      }
+      if (url.includes("/api/dashboard")) return Promise.resolve(Response.json(dashboard))
+      return Promise.reject(new Error(`Unhandled request: ${url}`))
+    }),
+  )
+
+  render(<App />)
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
+
+  window.dispatchEvent(new Event("focus"))
+  await waitFor(() => expect(statusCalls).toBe(2))
+  window.dispatchEvent(new Event("focus"))
+
+  resolveReconnectStatus(
+    Response.json({
+      connected: true,
+      snapshot_available: true,
+      imported_at: "2026-06-18T13:00:00Z",
+      source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+    }),
+  )
+  await waitFor(() => expect(importCalls).toBe(1))
+})
+
+test("does not let an initial dashboard response overwrite refreshed data", async () => {
+  let statusCalls = 0
+  let dashboardCalls = 0
+  let resolveInitialDashboard!: (response: Response) => void
+  const initialDashboard = new Promise<Response>((resolve) => {
+    resolveInitialDashboard = resolve
+  })
+  const refreshedDashboard = {
+    ...dashboard,
+    totals: { ...dashboard.totals, library: 99 },
+    continue_reading: [{ ...dashboard.continue_reading[0], title: "Refreshed Book" }],
+  }
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        statusCalls += 1
+        return Response.json({
+          connected: statusCalls > 1,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/import")) {
+        return Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T13:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/dashboard")) {
+        dashboardCalls += 1
+        return dashboardCalls === 1 ? initialDashboard : Response.json(refreshedDashboard)
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  render(<App />)
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
+
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"))
+  })
+  await waitFor(() => expect(dashboardCalls).toBe(2))
+
+  resolveInitialDashboard(Response.json(dashboard))
+  await act(async () => {
+    await initialDashboard
+  })
+
+  expect(await screen.findByText("Refreshed Book")).toBeVisible()
+  expect(screen.queryByText("Current Book")).not.toBeInTheDocument()
+})
+
 test("supports library search and sortable headers on the dashboard", async () => {
   const user = userEvent.setup()
   render(<App />)
