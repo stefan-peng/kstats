@@ -506,7 +506,8 @@ export function LibrarySection({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    data-interactive="true"
+                    className="hover:bg-muted/50"
                     onClick={() => onOpenBook(row.original.content_id)}
                   >
                     {row.getVisibleCells().map((cell) => (

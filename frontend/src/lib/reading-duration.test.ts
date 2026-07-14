@@ -24,6 +24,20 @@ test("preserves elapsed date spacing without materializing missing days", () => 
   expect(result[1].timestamp - result[0].timestamp).toBe(3 * 24 * 60 * 60 * 1000)
 })
 
+test("discards malformed calendar dates before charting", () => {
+  expect(prepareDailyDurationSeries([
+    { date: "not-a-date", seconds: 10 },
+    { date: "2026-02-30", seconds: 20 },
+    { date: "2026-06-17", seconds: 30 },
+  ])).toEqual([
+    {
+      date: "2026-06-17",
+      timestamp: Date.UTC(2026, 5, 17),
+      seconds: 30,
+    },
+  ])
+})
+
 test("zero-fills the last 30 daily buckets", () => {
   const result = aggregateDurationSeries(daily, "day")
 

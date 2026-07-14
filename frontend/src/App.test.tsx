@@ -629,6 +629,7 @@ test("supports library search and sortable headers on the dashboard", async () =
   expect(await screen.findByText(/1 book; 3,375 custom\/catalog rows ignored/)).toBeVisible()
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
   expect(row).toHaveClass("hover:bg-muted/50")
+  expect(row).toHaveAttribute("data-interactive", "true")
   expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
   expect(screen.getByRole("combobox", { name: "Reading status" })).toBeVisible()
   expect(screen.getByRole("combobox", { name: "Availability" })).toBeVisible()

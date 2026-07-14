@@ -21,6 +21,22 @@ export interface DurationHeatmap {
   totalDays: number
 }
 
+function dailyTimestamp(date: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const timestamp = Date.UTC(year, month - 1, day)
+  const parsed = new Date(timestamp)
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+    ? timestamp
+    : null
+}
+
 export function prepareDailyDurationSeries(
   daily: Array<{ date: string; seconds: number }>,
 ): Array<{ date: string; timestamp: number; seconds: number }> {
@@ -30,13 +46,9 @@ export function prepareDailyDurationSeries(
   }
   return [...totals.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, seconds]) => {
-      const [year, month, day] = date.split("-").map(Number)
-      return {
-        date,
-        timestamp: Date.UTC(year, month - 1, day),
-        seconds,
-      }
+    .flatMap(([date, seconds]) => {
+      const timestamp = dailyTimestamp(date)
+      return timestamp === null ? [] : [{ date, timestamp, seconds }]
     })
 }
 

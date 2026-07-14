@@ -54,6 +54,7 @@ const readingChartConfig = {
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
 
 function formatChartDate(value: number, long = false) {
+  if (!Number.isFinite(value)) return "Unknown date"
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
@@ -227,8 +228,11 @@ export function BookDetailDialog({
                         <ChartTooltip
                           content={
                             <ChartTooltipContent
-                              labelFormatter={(value) =>
-                                formatChartDate(Number(value), true)
+                              labelFormatter={(_value, payload) =>
+                                formatChartDate(
+                                  Number(payload[0]?.payload?.timestamp),
+                                  true,
+                                )
                               }
                               formatter={(value) => (
                                 <div className="flex min-w-32 items-center justify-between gap-4">

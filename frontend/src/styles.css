@@ -241,15 +241,48 @@ button.duration-heatmap-cell {
   select {
     font: inherit;
   }
+}
 
+/* Keep interaction cursors outside Tailwind's layers and apply them to the
+   contents of interactive containers. This prevents a descendant utility or
+   stylesheet injection order from changing the cursor over part of a target. */
+:where(
   button:not(:disabled),
+  a[href]:not([aria-disabled="true"]),
+  select:not(:disabled),
+  summary,
+  label[for],
+  input:not(:disabled):is(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="color"]
+  ),
+  [data-interactive="true"]:not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]),
-  [role="option"]:not([aria-disabled="true"]) {
-    cursor: pointer;
-  }
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"]),
+  [role="switch"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"])
+),
+:where(
+  button:not(:disabled),
+  a[href]:not([aria-disabled="true"]),
+  [data-interactive="true"]:not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"])
+) * {
+  cursor: pointer !important;
+}
 
-  button:disabled,
-  [aria-disabled="true"] {
-    cursor: not-allowed;
-  }
+:where(button:disabled, input:disabled, select:disabled, [aria-disabled="true"]),
+:where(button:disabled, [aria-disabled="true"]) * {
+  cursor: not-allowed !important;
 }

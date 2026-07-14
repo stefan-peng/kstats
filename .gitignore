@@ -9,5 +9,6 @@ frontend/coverage/
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+.playwright-mcp/
 .pi/self-learning-memory/
 .DS_Store
