@@ -1,10 +1,27 @@
 import { expect, test } from "vitest"
-import { aggregateDurationSeries } from "./reading-duration"
+import {
+  aggregateDurationSeries,
+  prepareDailyDurationSeries,
+} from "./reading-duration"
 
 const daily = [
   { date: "2026-06-16", seconds: 900 },
   { date: "2026-06-17", seconds: 900 },
 ]
+
+test("preserves elapsed date spacing without materializing missing days", () => {
+  const result = prepareDailyDurationSeries([
+      { date: "2026-06-16", seconds: 900 },
+      { date: "2026-06-19", seconds: 600 },
+    ])
+
+  expect(result).toHaveLength(2)
+  expect(result.map(({ date, seconds }) => ({ date, seconds }))).toEqual([
+    { date: "2026-06-16", seconds: 900 },
+    { date: "2026-06-19", seconds: 600 },
+  ])
+  expect(result[1].timestamp - result[0].timestamp).toBe(3 * 24 * 60 * 60 * 1000)
+})
 
 test("zero-fills the last 30 daily buckets", () => {
   const result = aggregateDurationSeries(daily, "day")

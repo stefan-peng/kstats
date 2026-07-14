@@ -319,7 +319,7 @@ class Repository:
                 options[key] = [row["value"] for row in rows]
         return options
 
-    def book(self, content_id: str) -> dict[str, Any] | None:
+    def book(self, content_id: str, chart_timezone: ZoneInfo) -> dict[str, Any] | None:
         with self.connect() as connection:
             row = connection.execute(
                 f"{BOOK_SELECT} WHERE content_id = ?",
@@ -341,6 +341,8 @@ class Repository:
                 [content_id],
             ).fetchall()
             dictionary_lookups: dict[tuple[str, str], dict[str, Any]] = {}
+            reading_events: list[dict[str, Any]] = []
+            skipped_reading_rows = 0
             if connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Event'"
             ).fetchone():
@@ -364,6 +366,25 @@ class Repository:
                         (lookup["dictionary"] or "").casefold(),
                     )
                     dictionary_lookups.setdefault(key, lookup)
+                reading_rows = connection.execute(
+                    """
+                    SELECT CAST(ExtraData AS BLOB) AS ExtraData
+                    FROM Event
+                    WHERE ContentID = ? AND EventType = ?
+                    """,
+                    [content_id, READING_EVENT_TYPE],
+                ).fetchall()
+                for event_row in reading_rows:
+                    try:
+                        payload = decode_event_payload(event_row["ExtraData"])
+                    except EventDecodeError:
+                        skipped_reading_rows += 1
+                        continue
+                    reading_event = parse_reading_event(payload)
+                    if reading_event is None:
+                        skipped_reading_rows += 1
+                        continue
+                    reading_events.append(reading_event)
         book = serialize_book(row, self.covers_dir)
         image_id = row["image_id"]
         full_cover = self.covers_dir / f"{image_id}-full.jpg" if image_id else None
@@ -380,5 +401,10 @@ class Repository:
                 lookup["word"].casefold(),
                 (lookup["dictionary"] or "").casefold(),
             ),
+        )
+        book["reading_duration"] = aggregate_reading_duration(
+            reading_events,
+            chart_timezone,
+            skipped_rows=skipped_reading_rows,
         )
         return book

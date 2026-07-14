@@ -89,6 +89,19 @@ function bookDetail(overrides = {}) {
     ...dashboard.continue_reading[0],
     bookmarks: [],
     dictionary_lookups: [],
+    reading_duration: {
+      estimated: true,
+      coverage_start: "2026-06-16",
+      coverage_end: "2026-06-17",
+      source_seconds: 1800,
+      allocated_seconds: 1800,
+      unallocated_seconds: 0,
+      skipped_rows: 0,
+      daily: [
+        { date: "2026-06-16", seconds: 900 },
+        { date: "2026-06-17", seconds: 900 },
+      ],
+    },
     data_source: {
       snapshot_path: ".data/KoboReader.sqlite",
       read_only: true,
@@ -672,7 +685,10 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).getByText("4h 19m")).toBeVisible()
   expect(within(dialog).getByText("1h 7m")).toBeVisible()
   expect(within(dialog).getByText("3h 11m")).toBeVisible()
-  expect(within(dialog).queryByText(/Reading sessions/)).not.toBeInTheDocument()
+  expect(within(dialog).getByText("Reading sessions")).toBeVisible()
+  expect(
+    within(dialog).getByRole("img", { name: "Estimated reading time by day" }),
+  ).toBeVisible()
   expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
 })

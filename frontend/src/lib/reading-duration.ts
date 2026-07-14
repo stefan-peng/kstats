@@ -5,6 +5,25 @@ export interface DurationPoint {
   seconds: number
 }
 
+export function prepareDailyDurationSeries(
+  daily: Array<{ date: string; seconds: number }>,
+): Array<{ date: string; timestamp: number; seconds: number }> {
+  const totals = new Map<string, number>()
+  for (const entry of daily) {
+    totals.set(entry.date, (totals.get(entry.date) ?? 0) + entry.seconds)
+  }
+  return [...totals.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, seconds]) => {
+      const [year, month, day] = date.split("-").map(Number)
+      return {
+        date,
+        timestamp: Date.UTC(year, month - 1, day),
+        seconds,
+      }
+    })
+}
+
 function parseDateKey(value: string): Date {
   const [year, month, day] = value.split("-").map(Number)
   return new Date(year, month - 1, day)

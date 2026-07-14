@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   CalendarDays,
   Clock3,
@@ -6,6 +6,7 @@ import {
   Languages,
   Timer,
 } from "lucide-react"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -15,6 +16,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import {
   Dialog,
   DialogContent,
@@ -31,10 +38,29 @@ import {
   formatDuration,
   formatNumber,
 } from "@/lib/format"
+import { prepareDailyDurationSeries } from "@/lib/reading-duration"
 import type { BookDetail } from "@/types"
 import { BookCover } from "./book-cover"
 import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
+
+const readingChartConfig = {
+  seconds: {
+    label: "Reading time",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig
+
+const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
+
+function formatChartDate(value: number, long = false) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: long ? "numeric" : undefined,
+    timeZone: "UTC",
+  }).format(new Date(value))
+}
 
 export function BookDetailDialog({
   contentId,
@@ -53,6 +79,10 @@ export function BookDetailDialog({
   } | null>(null)
   const book = bookResult?.contentId === contentId ? bookResult.book : null
   const error = errorResult?.contentId === contentId ? errorResult.message : null
+  const readingDurationSeries = useMemo(
+    () => prepareDailyDurationSeries(book?.reading_duration.daily ?? []),
+    [book],
+  )
 
   useEffect(() => {
     if (!contentId) {
@@ -147,6 +177,90 @@ export function BookDetailDialog({
                   </div>
                 </div>
               </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Reading sessions</CardTitle>
+                  <CardDescription>
+                    Estimated daily distribution from Kobo session telemetry
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {readingDurationSeries.length === 0 ? (
+                    <p className="flex h-44 items-center justify-center text-sm text-muted-foreground">
+                      No detailed reading telemetry is available for this book.
+                    </p>
+                  ) : (
+                    <ChartContainer
+                      config={readingChartConfig}
+                      className="h-52 min-h-0 w-full min-w-0 aspect-auto"
+                      role="img"
+                      aria-label="Estimated reading time by day"
+                    >
+                      <BarChart
+                        accessibilityLayer
+                        data={readingDurationSeries}
+                        margin={{ left: 8, right: 8 }}
+                      >
+                        <CartesianGrid vertical={false} />
+                        <XAxis
+                          dataKey="timestamp"
+                          type="number"
+                          scale="time"
+                          domain={[
+                            (minimum: number) => minimum - DAY_MILLISECONDS / 2,
+                            (maximum: number) => maximum + DAY_MILLISECONDS / 2,
+                          ]}
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={16}
+                          tickFormatter={(value) => formatChartDate(Number(value))}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          width={52}
+                          tickFormatter={(value) =>
+                            Number(value) === 0 ? "" : formatDuration(Number(value))
+                          }
+                        />
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              labelFormatter={(value) =>
+                                formatChartDate(Number(value), true)
+                              }
+                              formatter={(value) => (
+                                <div className="flex min-w-32 items-center justify-between gap-4">
+                                  <span className="text-muted-foreground">
+                                    Reading time
+                                  </span>
+                                  <span className="font-mono font-medium tabular-nums">
+                                    {formatDuration(Number(value))}
+                                  </span>
+                                </div>
+                              )}
+                            />
+                          }
+                        />
+                        <Bar
+                          dataKey="seconds"
+                          fill="var(--color-seconds)"
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={28}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                  {book.reading_duration.unallocated_seconds > 0 ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {formatDuration(book.reading_duration.unallocated_seconds)} could
+                      not be assigned to a calendar date.
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
 
               {book.status === "reading" && book.remaining_seconds > 0 ? (
                 <Card>

@@ -100,10 +100,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/book")
     def get_book(
         content_id: str = Query(min_length=1),
+        timezone: str = Query("UTC", min_length=1, max_length=100),
         repo: Repository = Depends(repository),
     ):
         try:
-            book = repo.book(content_id)
+            chart_timezone = ZoneInfo(timezone)
+        except (ValueError, ZoneInfoNotFoundError) as error:
+            raise HTTPException(status_code=422, detail="Unknown timezone") from error
+        try:
+            book = repo.book(content_id, chart_timezone)
         except FileNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         except EventDecodeError as error:

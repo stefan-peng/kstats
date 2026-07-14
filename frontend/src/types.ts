@@ -60,6 +60,7 @@ export interface DictionaryLookup {
 export interface BookDetail extends Book {
   bookmarks: Bookmark[]
   dictionary_lookups: DictionaryLookup[]
+  reading_duration: DashboardData["reading_duration"]
   data_source: {
     snapshot_path: string
     read_only: boolean

@@ -743,7 +743,19 @@ def test_book_detail_includes_visible_highlights(client):
             "color": 0,
         }
     ]
-    assert "reading_sessions" not in payload
+    assert payload["reading_duration"] == {
+        "estimated": True,
+        "coverage_start": "2026-06-16",
+        "coverage_end": "2026-06-17",
+        "source_seconds": 1800,
+        "allocated_seconds": 1800,
+        "unallocated_seconds": 0,
+        "skipped_rows": 0,
+        "daily": [
+            {"date": "2026-06-16", "seconds": 900},
+            {"date": "2026-06-17", "seconds": 900},
+        ],
+    }
     assert payload["dictionary_lookups"] == [
         {
             "word": "perspicacious",

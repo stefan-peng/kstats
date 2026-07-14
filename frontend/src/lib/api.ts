@@ -25,7 +25,11 @@ export const api = {
   },
   books: (query: URLSearchParams) =>
     request<BooksResponse>(`/api/books?${query.toString()}`),
-  book: (contentId: string) =>
-    request<BookDetail>(`/api/book?content_id=${encodeURIComponent(contentId)}`),
+  book: (contentId: string) => {
+    const query = new URLSearchParams({
+      content_id: contentId,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
+    return request<BookDetail>(`/api/book?${query.toString()}`)
+  },
 }
-
