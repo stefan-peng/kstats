@@ -16,6 +16,24 @@ export default defineConfig({
       "/api": "http://127.0.0.1:8000",
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          recharts: ["recharts"],
+          table: ["@tanstack/react-table"],
+          radix: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-progress",
+            "@radix-ui/react-select",
+            "@radix-ui/react-separator",
+            "@radix-ui/react-slot",
+            "radix-ui",
+          ],
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",

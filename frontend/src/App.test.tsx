@@ -116,6 +116,8 @@ const filterOptions = {
   languages: ["en"],
 }
 
+let localStorageDescriptor: PropertyDescriptor | undefined
+
 function mockFetch() {
   vi.stubGlobal(
     "fetch",
@@ -184,9 +186,16 @@ function mockFetch() {
   )
 }
 
-beforeEach(mockFetch)
+beforeEach(() => {
+  localStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage")
+  mockFetch()
+})
 afterEach(() => {
   cleanup()
+  if (localStorageDescriptor) {
+    Object.defineProperty(window, "localStorage", localStorageDescriptor)
+  }
+  localStorageDescriptor = undefined
   vi.unstubAllGlobals()
 })
 
@@ -224,19 +233,63 @@ test("switches the reading duration chart granularity without refetching", async
     screen.getByText(/Estimated from Kobo session telemetry/),
   ).toBeVisible()
   expect(screen.getByRole("img", { name: "Estimated reading duration by week" })).toBeVisible()
-  expect(screen.getByRole("button", { name: "Week" })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: "Weekly" })).toHaveAttribute(
     "aria-pressed",
     "true",
   )
 
-  await user.click(screen.getByRole("button", { name: "Day" }))
+  await user.click(screen.getByRole("button", { name: "Daily" }))
 
   expect(screen.getByRole("img", { name: "Estimated reading duration by day" })).toBeVisible()
-  expect(screen.getByRole("button", { name: "Day" })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: "Daily" })).toHaveAttribute(
     "aria-pressed",
     "true",
   )
   expect(fetch).toHaveBeenCalledTimes(3)
+})
+
+test("switches the reading duration chart to a calendar heatmap", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+
+  expect(await screen.findByRole("img", { name: "Estimated reading duration by week" })).toBeVisible()
+  await user.click(screen.getByRole("button", { name: "Heatmap" }))
+
+  expect(
+    screen.getByRole("region", { name: "Estimated reading duration as a calendar heatmap" }),
+  ).toBeVisible()
+  expect(screen.getByRole("button", { name: "Heatmap" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  )
+  expect(screen.getAllByRole("gridcell").length).toBeGreaterThan(365)
+  expect(fetch).toHaveBeenCalledTimes(3)
+})
+
+test("persists the selected reading duration option", async () => {
+  const storedOptions = new Map<string, string>()
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storedOptions.get(key) ?? null,
+      setItem: (key: string, value: string) => storedOptions.set(key, value),
+      clear: () => storedOptions.clear(),
+    },
+  })
+  window.localStorage.clear()
+  const user = userEvent.setup()
+  const firstRender = render(<App />)
+
+  await user.click(await screen.findByRole("button", { name: "Heatmap" }))
+  expect(window.localStorage.getItem("kstats.reading-duration-option")).toBe("heatmap")
+
+  firstRender.unmount()
+  render(<App />)
+
+  expect(await screen.findByRole("button", { name: "Heatmap" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  )
 })
 
 test("shows an empty state when detailed reading telemetry is unavailable", async () => {

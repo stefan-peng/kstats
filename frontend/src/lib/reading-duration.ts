@@ -5,6 +5,22 @@ export interface DurationPoint {
   seconds: number
 }
 
+export interface DurationHeatmapCell {
+  date: string
+  seconds: number
+  level: 0 | 1 | 2 | 3 | 4
+}
+
+export interface DurationHeatmap {
+  cells: DurationHeatmapCell[]
+  weeks: number
+  monthLabels: Array<{ week: number; label: string }>
+  startDate: string
+  endDate: string
+  maxSeconds: number
+  totalDays: number
+}
+
 export function prepareDailyDurationSeries(
   daily: Array<{ date: string; seconds: number }>,
 ): Array<{ date: string; timestamp: number; seconds: number }> {
@@ -55,6 +71,80 @@ function addMonths(value: Date, amount: number): Date {
 
 function monthKey(value: Date): string {
   return dateKey(value).slice(0, 7)
+}
+
+function heatmapLevel(seconds: number, maxSeconds: number): DurationHeatmapCell["level"] {
+  if (seconds <= 0 || maxSeconds <= 0) return 0
+  const ratio = seconds / maxSeconds
+  if (ratio <= 0.25) return 1
+  if (ratio <= 0.5) return 2
+  if (ratio <= 0.75) return 3
+  return 4
+}
+
+export function buildDurationHeatmap(
+  daily: Array<{ date: string; seconds: number }>,
+): DurationHeatmap | null {
+  const series = prepareDailyDurationSeries(daily)
+  if (series.length === 0) return null
+
+  const end = parseDateKey(series[series.length - 1].date)
+  const visibleStart = addDays(end, -364)
+  const start = addDays(visibleStart, -visibleStart.getDay())
+  const visibleDays = series.filter((entry) => {
+    const date = parseDateKey(entry.date)
+    return date >= visibleStart && date <= end
+  })
+  const maxSeconds = Math.max(0, ...visibleDays.map((entry) => entry.seconds))
+  const dayMap = new Map(
+    visibleDays.map((entry) => [
+      entry.date,
+      { ...entry, level: heatmapLevel(entry.seconds, maxSeconds) },
+    ]),
+  )
+  const cells: DurationHeatmapCell[] = []
+  const paddedEnd = addDays(end, 6 - end.getDay())
+
+  for (let date = start; date <= paddedEnd; date = addDays(date, 1)) {
+    const key = dateKey(date)
+    const entry = dayMap.get(key)
+    cells.push({
+      date: key,
+      seconds: entry?.seconds ?? 0,
+      level: entry?.level ?? 0,
+    })
+  }
+
+  const weeks = Math.ceil(cells.length / 7)
+  const monthLabels: Array<{ week: number; label: string }> = []
+  let lastMonth = ""
+  for (let week = 0; week < weeks; week += 1) {
+    const weekCells = cells.slice(week * 7, week * 7 + 7)
+    const monthCell =
+      week === 0
+        ? weekCells[0]
+        : weekCells.find((cell) => parseDateKey(cell.date).getDate() <= 7)
+    if (!monthCell) continue
+    const month = monthCell.date.slice(0, 7)
+    if (month === lastMonth) continue
+    lastMonth = month
+    monthLabels.push({
+      week,
+      label: parseDateKey(monthCell.date).toLocaleDateString(undefined, {
+        month: "short",
+      }),
+    })
+  }
+
+  return {
+    cells,
+    weeks,
+    monthLabels,
+    startDate: dateKey(start),
+    endDate: dateKey(end),
+    maxSeconds,
+    totalDays: visibleDays.filter((entry) => entry.seconds > 0).length,
+  }
 }
 
 export function aggregateDurationSeries(

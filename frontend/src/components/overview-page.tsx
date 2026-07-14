@@ -1,4 +1,10 @@
-import { useMemo, useState, type KeyboardEvent } from "react"
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react"
 import {
   BookCheck,
   BookOpenText,
@@ -22,6 +28,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -31,6 +38,11 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   formatDate,
   formatDuration,
   formatMonth,
@@ -39,11 +51,30 @@ import {
 } from "@/lib/format"
 import {
   aggregateDurationSeries,
+  buildDurationHeatmap,
   formatDurationPeriod,
+  type DurationHeatmap,
   type DurationGranularity,
 } from "@/lib/reading-duration"
+import { cn } from "@/lib/utils"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { LibrarySection } from "./library-page"
+
+type DurationOption = DurationGranularity | "heatmap"
+
+const DURATION_OPTION_STORAGE_KEY = "kstats.reading-duration-option"
+
+function readDurationOption(): DurationOption {
+  if (typeof window === "undefined") return "week"
+  try {
+    const stored = window.localStorage?.getItem(DURATION_OPTION_STORAGE_KEY)
+    return stored === "day" || stored === "week" || stored === "month" || stored === "heatmap"
+      ? stored
+      : "week"
+  } catch {
+    return "week"
+  }
+}
 
 export function OverviewPage({
   dashboard,
@@ -63,8 +94,17 @@ export function OverviewPage({
   onOpenBook: (contentId: string) => void
 }) {
   const [finishedMonth, setFinishedMonth] = useState<string | null>(null)
-  const [durationGranularity, setDurationGranularity] =
-    useState<DurationGranularity>("week")
+  const [durationOption, setDurationOption] = useState<DurationOption>(readDurationOption)
+  const durationGranularity: DurationGranularity =
+    durationOption === "heatmap" ? "week" : durationOption
+
+  useEffect(() => {
+    try {
+      window.localStorage?.setItem(DURATION_OPTION_STORAGE_KEY, durationOption)
+    } catch {
+      // Storage is optional; the selected view still works for the current session.
+    }
+  }, [durationOption])
   const durationSeries = useMemo(
     () =>
       aggregateDurationSeries(
@@ -72,6 +112,10 @@ export function OverviewPage({
         durationGranularity,
       ),
     [dashboard, durationGranularity],
+  )
+  const durationHeatmap = useMemo(
+    () => buildDurationHeatmap(dashboard?.reading_duration.daily ?? []),
+    [dashboard],
   )
   const activateBook = (
     contentId: string,
@@ -182,7 +226,11 @@ export function OverviewPage({
           </CardHeader>
           <CardContent className="grid items-center gap-4 sm:grid-cols-[180px_1fr] xl:grid-cols-1 2xl:grid-cols-[180px_1fr]">
             <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                initialDimension={{ width: 800, height: 176 }}
+              >
                 <PieChart>
                   <Pie
                     data={statusData}
@@ -239,7 +287,11 @@ export function OverviewPage({
               </div>
             ) : (
               <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  initialDimension={{ width: 800, height: 208 }}
+                >
                   <BarChart data={dashboard.monthly_completions}>
                     <CartesianGrid vertical={false} stroke="var(--border)" />
                     <XAxis
@@ -319,37 +371,52 @@ export function OverviewPage({
                 : "Estimated from Kobo session telemetry"}
             </CardDescription>
           </div>
-          <div
-            role="group"
-            aria-label="Reading duration granularity"
-            className="flex gap-1"
-          >
-            {(["day", "week", "month"] as const).map((granularity) => (
-              <Button
-                key={granularity}
-                type="button"
-                size="sm"
-                variant={durationGranularity === granularity ? "default" : "outline"}
-                aria-pressed={durationGranularity === granularity}
-                onClick={() => setDurationGranularity(granularity)}
-              >
-                {granularity[0].toUpperCase() + granularity.slice(1)}
-              </Button>
-            ))}
-          </div>
+          <CardAction className="flex flex-wrap justify-end gap-2 max-sm:col-span-full max-sm:col-start-1 max-sm:row-start-3">
+            <div
+              role="group"
+              aria-label="Reading duration view"
+              className="flex gap-1"
+            >
+              {(
+                [
+                  ["day", "Daily"],
+                  ["week", "Weekly"],
+                  ["month", "Monthly"],
+                  ["heatmap", "Heatmap"],
+                ] as const
+              ).map(([option, label]) => (
+                <Button
+                  key={option}
+                  type="button"
+                  size="sm"
+                  variant={durationOption === option ? "default" : "outline"}
+                  aria-pressed={durationOption === option}
+                  onClick={() => setDurationOption(option)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </CardAction>
         </CardHeader>
         <CardContent>
-          {durationSeries.length === 0 ? (
+          {durationSeries.length === 0 || !durationHeatmap ? (
             <div className="flex h-60 items-center justify-center text-sm text-muted-foreground">
               No detailed reading telemetry is available.
             </div>
+          ) : durationOption === "heatmap" ? (
+            <DurationHeatmapView heatmap={durationHeatmap} />
           ) : (
             <div
               className="h-64"
               role="img"
               aria-label={`Estimated reading duration by ${durationGranularity}`}
             >
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                initialDimension={{ width: 800, height: 256 }}
+              >
                 <BarChart data={durationSeries}>
                   <CartesianGrid vertical={false} stroke="var(--border)" />
                   <XAxis
@@ -499,6 +566,103 @@ export function OverviewPage({
         onClearFinishedMonth={() => setFinishedMonth(null)}
       />
     </main>
+  )
+}
+
+function DurationHeatmapView({ heatmap }: { heatmap: DurationHeatmap }) {
+  const dateFormatter = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })
+  const dateRange = `${formatDurationPeriod(heatmap.startDate, "day", true)}–${formatDurationPeriod(heatmap.endDate, "day", true)}`
+
+  return (
+    <div
+      className="flex flex-col gap-3"
+      role="region"
+      aria-label="Estimated reading duration as a calendar heatmap"
+    >
+      <div className="duration-heatmap-scroll" tabIndex={0} aria-label="Scrollable reading duration heatmap">
+        <div
+          className="duration-heatmap"
+          style={{ "--duration-heatmap-weeks": heatmap.weeks } as CSSProperties}
+        >
+          <div className="duration-heatmap-months" aria-hidden="true">
+            {heatmap.monthLabels.map((month, index) => {
+              const nextWeek = heatmap.monthLabels[index + 1]?.week ?? heatmap.weeks
+              const span = Math.max(1, Math.min(4, nextWeek - month.week))
+              return (
+                <span
+                  key={`${month.week}-${month.label}`}
+                  style={{ gridColumn: `${month.week + 1} / span ${span}` }}
+                >
+                  {month.label}
+                </span>
+              )
+            })}
+          </div>
+          <div className="duration-heatmap-body">
+            <div className="duration-heatmap-weekdays" aria-hidden="true">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                <span key={day}>{["Mon", "Wed", "Fri"].includes(day) ? day : ""}</span>
+              ))}
+            </div>
+            <div className="duration-heatmap-days" role="grid" aria-label="Reading duration by day">
+              {heatmap.cells.map((cell) => {
+                const date = dateFormatter.format(new Date(`${cell.date}T00:00:00`))
+                const label = cell.seconds
+                  ? `${date}: ${formatDuration(cell.seconds)} read, intensity ${cell.level} of 4`
+                  : `${date}: no reading`
+                return (
+                  <Tooltip key={cell.date}>
+                    <TooltipTrigger asChild>
+                      {cell.seconds ? (
+                        <button
+                          type="button"
+                          role="gridcell"
+                          aria-label={label}
+                          className={cn(
+                            "duration-heatmap-cell",
+                            `level-${cell.level}`,
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          )}
+                        />
+                      ) : (
+                        <span
+                          role="gridcell"
+                          aria-label={label}
+                          tabIndex={-1}
+                          className="duration-heatmap-cell level-0"
+                        />
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <div className="grid gap-1">
+                        <span>{date}</span>
+                        <strong>{cell.seconds ? `${formatDuration(cell.seconds)} read` : "No reading"}</strong>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </div>
+          </div>
+          <div className="duration-heatmap-footer">
+            <span>{heatmap.totalDays} reading {heatmap.totalDays === 1 ? "day" : "days"}</span>
+            <span aria-label="Reading duration intensity legend" className="duration-heatmap-legend">
+              <span>Less</span>
+              {[0, 1, 2, 3, 4].map((level) => (
+                <i key={level} className={cn("duration-heatmap-cell", `level-${level}`)} />
+              ))}
+              <span>More</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">{dateRange}</p>
+    </div>
   )
 }
 
