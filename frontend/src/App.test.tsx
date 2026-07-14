@@ -15,6 +15,19 @@ const dashboard = {
     merged_removed_history: 0,
   },
   monthly_completions: [{ month: "2026-05", count: 1 }],
+  reading_duration: {
+    estimated: true,
+    coverage_start: "2026-06-16",
+    coverage_end: "2026-06-17",
+    source_seconds: 1800,
+    allocated_seconds: 1800,
+    unallocated_seconds: 0,
+    skipped_rows: 0,
+    daily: [
+      { date: "2026-06-16", seconds: 900 },
+      { date: "2026-06-17", seconds: 900 },
+    ],
+  },
   continue_reading: [
     {
       content_id: "book-1",
@@ -187,6 +200,61 @@ test("renders overview metrics from the imported snapshot", async () => {
       expect(sector).toHaveAttribute("stroke", "var(--card)")
     })
   })
+})
+
+test("switches the reading duration chart granularity without refetching", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+
+  expect(await screen.findByText("Reading duration")).toBeVisible()
+  expect(
+    screen.getByText(/Estimated from Kobo session telemetry/),
+  ).toBeVisible()
+  expect(screen.getByRole("img", { name: "Estimated reading duration by week" })).toBeVisible()
+  expect(screen.getByRole("button", { name: "Week" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  )
+
+  await user.click(screen.getByRole("button", { name: "Day" }))
+
+  expect(screen.getByRole("img", { name: "Estimated reading duration by day" })).toBeVisible()
+  expect(screen.getByRole("button", { name: "Day" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  )
+  expect(fetch).toHaveBeenCalledTimes(3)
+})
+
+test("shows an empty state when detailed reading telemetry is unavailable", async () => {
+  const defaultFetch = fetch
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/api/dashboard")) {
+        return Response.json({
+          ...dashboard,
+          reading_duration: {
+            estimated: true,
+            coverage_start: null,
+            coverage_end: null,
+            source_seconds: 0,
+            allocated_seconds: 0,
+            unallocated_seconds: 0,
+            skipped_rows: 0,
+            daily: [],
+          },
+        })
+      }
+      return defaultFetch(input, init)
+    }),
+  )
+
+  render(<App />)
+
+  expect(
+    await screen.findByText("No detailed reading telemetry is available."),
+  ).toBeVisible()
 })
 
 test("shows an explicit device status while loading", () => {

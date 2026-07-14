@@ -1,8 +1,11 @@
 import struct
 
+import pytest
+
 from backend.app.kobo_events import (
     decode_event_payload,
     parse_dictionary_event,
+    parse_reading_event,
 )
 
 
@@ -49,3 +52,33 @@ def test_dictionary_lookup_preserves_source_spelling():
         "word": "RCA",
         "dictionary": "-EN",
     }
+
+
+def test_parses_valid_reading_telemetry_and_discards_invalid_timestamps():
+    assert parse_reading_event(
+        {
+            "ExtraDataReadingSeconds": 120,
+            "ExtraDataReadingSessions": 2,
+            "eventTimestamps": [100, True, -1, "200", 200],
+        }
+    ) == {
+        "seconds": 120,
+        "sessions": 2,
+        "timestamps": [100, 200],
+    }
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"ExtraDataReadingSeconds": -1, "ExtraDataReadingSessions": 1},
+        {
+            "ExtraDataReadingSeconds": 1,
+            "ExtraDataReadingSessions": 0,
+            "eventTimestamps": [],
+        },
+    ],
+)
+def test_rejects_incomplete_reading_telemetry(payload):
+    assert parse_reading_event(payload) is None

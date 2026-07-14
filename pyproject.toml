@@ -5,6 +5,7 @@ description = "Local-first reading statistics dashboard for native Kobo readers"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0",
+  "tzdata>=2026.3",
   "uvicorn[standard]>=0.34.0",
 ]
 

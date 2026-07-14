@@ -3,7 +3,9 @@
 A local-first reading dashboard for the native Kobo reader. The app copies the
 mounted `KoboReader.sqlite` database into a local snapshot, then serves a
 read-only dashboard for books, progress, reading time, completion dates, and
-highlights.
+highlights. The overview also charts estimated reading duration by day, week,
+or month using Kobo's aggregated session telemetry. The chart preserves Kobo's
+reported duration totals, but its historical date allocation is approximate.
 
 ## Run
 

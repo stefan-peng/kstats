@@ -5,13 +5,18 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from .config import Settings
 from .kobo_events import (
     DICTIONARY_EVENT_TYPE,
+    READING_EVENT_TYPE,
+    EventDecodeError,
     decode_event_payload,
     parse_dictionary_event,
+    parse_reading_event,
 )
+from .reading_duration import aggregate_reading_duration
 from .source_processing import SourceType, ensure_derived_tables
 
 BOOK_SELECT = """
@@ -92,7 +97,8 @@ class Repository:
             }
         return {key: int(row[key] or 0) for key in row.keys()}
 
-    def dashboard(self) -> dict[str, Any]:
+    def dashboard(self, timezone: ZoneInfo | None = None) -> dict[str, Any]:
+        chart_timezone = timezone or ZoneInfo("UTC")
         with self.connect() as connection:
             totals = connection.execute(
                 """
@@ -145,6 +151,35 @@ class Repository:
                 """
             ).fetchall()
 
+            reading_events: list[dict[str, Any]] = []
+            skipped_reading_rows = 0
+            has_event_table = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Event'"
+            ).fetchone()
+            event_rows = (
+                connection.execute(
+                    """
+                    SELECT CAST(ExtraData AS BLOB) AS extra_data
+                    FROM Event
+                    WHERE EventType = ?
+                    """,
+                    [READING_EVENT_TYPE],
+                ).fetchall()
+                if has_event_table
+                else []
+            )
+            for event_row in event_rows:
+                try:
+                    payload = decode_event_payload(event_row["extra_data"])
+                except EventDecodeError:
+                    skipped_reading_rows += 1
+                    continue
+                reading_event = parse_reading_event(payload)
+                if reading_event is None:
+                    skipped_reading_rows += 1
+                    continue
+                reading_events.append(reading_event)
+
             source_summary = self._source_summary(connection)
 
         status_counts = {"unread": 0, "reading": 0, "finished": 0}
@@ -163,6 +198,11 @@ class Repository:
             "monthly_completions": [
                 dict(row) for row in reversed(monthly_rows) if row["month"]
             ],
+            "reading_duration": aggregate_reading_duration(
+                reading_events,
+                chart_timezone,
+                skipped_rows=skipped_reading_rows,
+            ),
             "continue_reading": [
                 serialize_book(row, self.covers_dir) for row in continue_rows
             ],

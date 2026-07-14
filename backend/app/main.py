@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
@@ -44,9 +45,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get("/api/dashboard")
-    def get_dashboard(repo: Repository = Depends(repository)):
+    def get_dashboard(
+        timezone: str = Query("UTC", min_length=1, max_length=100),
+        repo: Repository = Depends(repository),
+    ):
         try:
-            return repo.dashboard()
+            chart_timezone = ZoneInfo(timezone)
+        except (ValueError, ZoneInfoNotFoundError) as error:
+            raise HTTPException(status_code=422, detail="Unknown timezone") from error
+        try:
+            return repo.dashboard(chart_timezone)
         except FileNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 

@@ -76,6 +76,16 @@ export interface DashboardData {
   status_counts: Record<ReadingStatus, number>
   source_summary: SourceSummary
   monthly_completions: Array<{ month: string; count: number }>
+  reading_duration: {
+    estimated: boolean
+    coverage_start: string | null
+    coverage_end: string | null
+    source_seconds: number
+    allocated_seconds: number
+    unallocated_seconds: number
+    skipped_rows: number
+    daily: Array<{ date: string; seconds: number }>
+  }
   continue_reading: Book[]
   top_books: Book[]
 }

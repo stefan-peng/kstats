@@ -4,6 +4,7 @@ from typing import Any
 
 
 DICTIONARY_EVENT_TYPE = 9
+READING_EVENT_TYPE = 3
 
 
 class EventDecodeError(ValueError):
@@ -121,4 +122,31 @@ def parse_dictionary_event(payload: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "word": word.strip(),
         "dictionary": dictionary_name,
+    }
+
+
+def parse_reading_event(payload: dict[str, Any]) -> dict[str, Any] | None:
+    seconds = payload.get("ExtraDataReadingSeconds")
+    sessions = payload.get("ExtraDataReadingSessions")
+    timestamps = payload.get("eventTimestamps")
+    if (
+        not isinstance(seconds, int)
+        or isinstance(seconds, bool)
+        or seconds < 0
+        or not isinstance(sessions, int)
+        or isinstance(sessions, bool)
+        or sessions < 1
+        or not isinstance(timestamps, list)
+    ):
+        return None
+
+    valid_timestamps = [
+        value
+        for value in timestamps
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    ]
+    return {
+        "seconds": seconds,
+        "sessions": sessions,
+        "timestamps": valid_timestamps,
     }

@@ -52,7 +52,74 @@ def test_startup_import_and_dashboard_exclude_pocket(client):
     }
     assert payload["continue_reading"][0]["title"] == "Current Book"
     assert payload["monthly_completions"] == [{"month": "2026-05", "count": 1}]
+    assert payload["reading_duration"] == {
+        "estimated": True,
+        "coverage_start": "2026-06-16",
+        "coverage_end": "2026-06-17",
+        "source_seconds": 1800,
+        "allocated_seconds": 1800,
+        "unallocated_seconds": 0,
+        "skipped_rows": 0,
+        "daily": [
+            {"date": "2026-06-16", "seconds": 900},
+            {"date": "2026-06-17", "seconds": 900},
+        ],
+    }
     assert "recent_books" not in payload
+
+
+def test_dashboard_uses_requested_timezone(client):
+    response = client.get(
+        "/api/dashboard", params={"timezone": "America/New_York"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reading_duration"]["daily"] == [
+        {"date": "2026-06-16", "seconds": 1800}
+    ]
+
+
+def test_dashboard_rejects_unknown_timezone(client):
+    response = client.get("/api/dashboard", params={"timezone": "Mars/Olympus"})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Unknown timezone"
+
+
+def test_dashboard_rejects_path_like_timezone(client):
+    response = client.get("/api/dashboard", params={"timezone": "../UTC"})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Unknown timezone"
+
+
+def test_dashboard_handles_snapshot_without_event_table(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute("DROP TABLE Event")
+
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    assert response.json()["reading_duration"]["daily"] == []
+
+
+def test_dashboard_skips_corrupt_reading_event(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute(
+            """
+            INSERT INTO Event (
+                EventType, EventCount, LastOccurrence, ContentID, Checksum, ExtraData
+            ) VALUES (3, 1, '2026-06-17T01:00:00Z', 'book-reading', 'corrupt', ?)
+            """,
+            [b"\x00"],
+        )
+
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 200
+    duration = response.json()["reading_duration"]
+    assert duration["source_seconds"] == 1800
+    assert duration["skipped_rows"] == 1
 
 
 def test_startup_import_failure_raises(tmp_path):

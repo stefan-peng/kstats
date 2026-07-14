@@ -17,7 +17,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   deviceStatus: () => request<DeviceStatus>("/api/device/status"),
   refresh: () => request<DeviceStatus>("/api/import", { method: "POST" }),
-  dashboard: () => request<DashboardData>("/api/dashboard"),
+  dashboard: () => {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    return request<DashboardData>(
+      `/api/dashboard?timezone=${encodeURIComponent(timezone)}`,
+    )
+  },
   books: (query: URLSearchParams) =>
     request<BooksResponse>(`/api/books?${query.toString()}`),
   book: (contentId: string) =>

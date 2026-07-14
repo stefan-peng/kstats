@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   BookCheck,
   BookOpenText,
@@ -37,6 +37,11 @@ import {
   formatMonthYear,
   formatNumber,
 } from "@/lib/format"
+import {
+  aggregateDurationSeries,
+  formatDurationPeriod,
+  type DurationGranularity,
+} from "@/lib/reading-duration"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { LibrarySection } from "./library-page"
 
@@ -58,6 +63,16 @@ export function OverviewPage({
   onOpenBook: (contentId: string) => void
 }) {
   const [finishedMonth, setFinishedMonth] = useState<string | null>(null)
+  const [durationGranularity, setDurationGranularity] =
+    useState<DurationGranularity>("week")
+  const durationSeries = useMemo(
+    () =>
+      aggregateDurationSeries(
+        dashboard?.reading_duration.daily ?? [],
+        durationGranularity,
+      ),
+    [dashboard, durationGranularity],
+  )
 
   if (loading) {
     return <OverviewSkeleton />
@@ -278,6 +293,105 @@ export function OverviewPage({
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Reading duration</CardTitle>
+            <CardDescription className="mt-1">
+              {dashboard.reading_duration.coverage_start &&
+              dashboard.reading_duration.coverage_end
+                ? `Estimated from Kobo session telemetry · ${formatDurationPeriod(dashboard.reading_duration.coverage_start, "day", true)}–${formatDurationPeriod(dashboard.reading_duration.coverage_end, "day", true)}`
+                : "Estimated from Kobo session telemetry"}
+            </CardDescription>
+          </div>
+          <div
+            role="group"
+            aria-label="Reading duration granularity"
+            className="flex gap-1"
+          >
+            {(["day", "week", "month"] as const).map((granularity) => (
+              <Button
+                key={granularity}
+                type="button"
+                size="sm"
+                variant={durationGranularity === granularity ? "default" : "outline"}
+                aria-pressed={durationGranularity === granularity}
+                onClick={() => setDurationGranularity(granularity)}
+              >
+                {granularity[0].toUpperCase() + granularity.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {durationSeries.length === 0 ? (
+            <div className="flex h-60 items-center justify-center text-sm text-muted-foreground">
+              No detailed reading telemetry is available.
+            </div>
+          ) : (
+            <div
+              className="h-64"
+              role="img"
+              aria-label={`Estimated reading duration by ${durationGranularity}`}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={durationSeries}>
+                  <CartesianGrid vertical={false} stroke="var(--border)" />
+                  <XAxis
+                    dataKey="period"
+                    tickFormatter={(value) =>
+                      formatDurationPeriod(String(value), durationGranularity)
+                    }
+                    axisLine={false}
+                    tickLine={false}
+                    minTickGap={16}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    width={52}
+                    tickFormatter={(value) => formatDuration(Number(value))}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                  />
+                  <RechartsTooltip
+                    labelFormatter={(value) =>
+                      formatDurationPeriod(
+                        String(value),
+                        durationGranularity,
+                        true,
+                      )
+                    }
+                    formatter={(value) => [
+                      formatDuration(Number(value)),
+                      "Reading time",
+                    ]}
+                    contentStyle={{
+                      background: "var(--popover)",
+                      borderColor: "var(--border)",
+                      borderRadius: "var(--radius)",
+                    }}
+                  />
+                  <Bar
+                    dataKey="seconds"
+                    fill="var(--chart-2)"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={28}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {dashboard.reading_duration.unallocated_seconds > 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {formatDuration(dashboard.reading_duration.unallocated_seconds)} could
+              not be assigned to a calendar date.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <section className="flex flex-col gap-4">
         <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>

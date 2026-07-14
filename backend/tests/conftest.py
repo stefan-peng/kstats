@@ -218,6 +218,34 @@ def create_fixture_database(path: Path) -> None:
         """,
         [
             (
+                3,
+                1,
+                "2026-06-17T00:30:00Z",
+                "book-reading",
+                "reading-duration",
+                event_payload(
+                    {
+                        "ExtraDataReadingSeconds": 1800,
+                        "ExtraDataReadingSessions": 1,
+                        "eventTimestamps": [1781652600, 1781656200],
+                    }
+                ),
+            ),
+            (
+                46,
+                1,
+                "2026-06-17T00:30:00Z",
+                "pocket",
+                "pocket-reading-duration",
+                event_payload(
+                    {
+                        "ExtraDataReadingSeconds": 3600,
+                        "ExtraDataReadingSessions": 1,
+                        "eventTimestamps": [1781652600, 1781656200],
+                    }
+                ),
+            ),
+            (
                 9,
                 2,
                 "2026-06-16T11:50:00Z",
