@@ -9,17 +9,42 @@ reported duration totals, but its historical date allocation is approximate.
 
 ## Run
 
-Connect the Kobo, then run:
+Install the dependencies once:
 
 ```bash
 uv sync
 npm ci --prefix frontend
-npm run build --prefix frontend
-uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>. The last successful snapshot remains available
-after the reader is disconnected.
+For development, run the reload-enabled backend and Vite frontend:
+
+```bash
+uv run dev
+```
+
+Open <http://127.0.0.1:5173>.
+
+To build and run the production version:
+
+```bash
+uv run prod
+```
+
+Open <http://127.0.0.1:8000>. Connect the Kobo before starting either version
+to import its database. The last successful snapshot remains available after
+the reader is disconnected.
+
+Server settings live in `kstats.toml`:
+
+```toml
+[server]
+host = "127.0.0.1"
+backend_port = 8000
+frontend_port = 5173
+```
+
+The frontend port is used by `uv run dev`; production serves both the API and
+built frontend from the backend port.
 
 The app auto-detects the Kobo database at `/Volumes/KOBOeReader` on macOS and
 at the `.kobo` folder on mounted Windows drive letters. If your reader is
@@ -28,7 +53,7 @@ path before starting the server:
 
 ```powershell
 $env:KSTATS_KOBO_DATABASE = "E:\.kobo\KoboReader.sqlite"
-uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+uv run prod
 ```
 
 ## Validate

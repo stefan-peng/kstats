@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "kobo-stats"
 version = "0.1.0"
@@ -9,6 +13,14 @@ dependencies = [
   "uvicorn[standard]>=0.34.0",
 ]
 
+[project.scripts]
+dev = "backend.app.cli:dev"
+prod = "backend.app.cli:prod"
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+exclude = ["backend.tests*"]
+
 [dependency-groups]
 dev = [
   "httpx>=0.28.0",
@@ -17,4 +29,3 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
-

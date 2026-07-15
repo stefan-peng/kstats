@@ -188,6 +188,7 @@ function mockFetch() {
 
 beforeEach(() => {
   localStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage")
+  window.localStorage.clear()
   mockFetch()
 })
 afterEach(() => {

@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:8000",
+      "/api": process.env.KSTATS_DEV_API_URL ?? "http://127.0.0.1:8000",
     },
   },
   build: {
