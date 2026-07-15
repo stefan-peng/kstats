@@ -202,6 +202,14 @@ afterEach(() => {
 test("renders overview metrics from the imported snapshot", async () => {
   render(<App />)
   expect(await screen.findByRole("heading", { name: "Reading overview" })).toBeVisible()
+  const importedAt = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date("2026-06-18T12:00:00Z"))
+  expect(screen.getByText(`Snapshot from ${importedAt}`)).toBeVisible()
   expect(screen.getByText("3h 1m")).toBeVisible()
   expect(await screen.findByText("4h 19m")).toBeVisible()
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
@@ -981,4 +989,137 @@ test("refreshes the device snapshot", async () => {
   const button = await screen.findByRole("button", { name: "Refresh from Kobo" })
   await user.click(button)
   await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/import", { method: "POST" }))
+})
+
+test("keeps showing the previous snapshot when an import is corrupted", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        return Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/import")) {
+        return Response.json(
+          { detail: "Imported database failed its integrity check" },
+          { status: 409 },
+        )
+      }
+      if (url.includes("/api/dashboard")) return Response.json(dashboard)
+      if (url.includes("/api/books")) {
+        return Response.json({
+          items: dashboard.continue_reading,
+          page: 1,
+          page_size: 20,
+          total: 1,
+          pages: 1,
+          filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole("button", { name: "Refresh from Kobo" }))
+
+  expect(await screen.findByText("Using the previous snapshot")).toBeVisible()
+  expect(screen.getByText(/failed its integrity check/)).toBeVisible()
+  expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+  expect(screen.getAllByText("Current Book")).toHaveLength(2)
+  expect(screen.queryByText("Reading data is unavailable")).not.toBeInTheDocument()
+})
+
+test("does not claim fallback when the first import fails", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        return Response.json({
+          connected: true,
+          snapshot_available: false,
+          imported_at: null,
+          source: null,
+        })
+      }
+      if (url.includes("/api/import")) {
+        return Response.json(
+          { detail: "Imported database failed its integrity check" },
+          { status: 409 },
+        )
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole("button", { name: "Import from Kobo" }))
+
+  const alert = await screen.findByRole("alert")
+  expect(within(alert).getByText("Imported database failed its integrity check")).toBeVisible()
+  expect(screen.queryByText(/using the previous snapshot/i)).not.toBeInTheDocument()
+})
+
+test("does not claim fallback when the import succeeds but reloading fails", async () => {
+  let dashboardCalls = 0
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        return Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T12:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/import")) {
+        return Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T13:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        })
+      }
+      if (url.includes("/api/dashboard")) {
+        dashboardCalls += 1
+        if (dashboardCalls === 1) return Response.json(dashboard)
+        return Response.json({ detail: "Unable to query imported database" }, { status: 500 })
+      }
+      if (url.includes("/api/books")) {
+        return Response.json({
+          items: dashboard.continue_reading,
+          page: 1,
+          page_size: 20,
+          total: 1,
+          pages: 1,
+          filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
+        })
+      }
+      throw new Error(`Unhandled request: ${url}`)
+    }),
+  )
+
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole("button", { name: "Refresh from Kobo" }))
+
+  expect(await screen.findByText("Reading data is unavailable")).toBeVisible()
+  expect(
+    screen.getByText(
+      "Kobo snapshot imported, but reading data could not be loaded. Unable to query imported database",
+    ),
+  ).toBeVisible()
+  expect(screen.queryByText("Using the previous snapshot")).not.toBeInTheDocument()
 })

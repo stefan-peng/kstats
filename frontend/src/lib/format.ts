@@ -17,6 +17,19 @@ export function formatDate(value: string | null): string {
   }).format(date)
 }
 
+export function formatDateTime(value: string | null): string {
+  if (!value) return "Never"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date)
+}
+
 export function formatMonth(value: string): string {
   const [year, month] = value.split("-").map(Number)
   return new Intl.DateTimeFormat(undefined, { month: "short" }).format(

@@ -11,6 +11,7 @@ import {
   Clock3,
   Library,
   RefreshCw,
+  TriangleAlert,
 } from "lucide-react"
 import {
   Bar,
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/tooltip"
 import {
   formatDate,
+  formatDateTime,
   formatDuration,
   formatMonth,
   formatMonthYear,
@@ -130,7 +132,7 @@ export function OverviewPage({
     return <OverviewSkeleton />
   }
 
-  if (error || !dashboard) {
+  if (!dashboard) {
     return (
       <main className="mx-auto max-w-7xl p-5 md:p-8">
         <Alert variant="destructive">
@@ -178,6 +180,15 @@ export function OverviewPage({
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-8 p-5 md:p-8 lg:p-10">
+      {error && (
+        <Alert>
+          <TriangleAlert />
+          <AlertTitle>Using the previous snapshot</AlertTitle>
+          <AlertDescription>
+            The latest Kobo import failed, so your existing reading data was kept. {error}
+          </AlertDescription>
+        </Alert>
+      )}
       <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
           <h1 className="font-serif text-4xl font-semibold tracking-tight">
@@ -194,7 +205,7 @@ export function OverviewPage({
           </Button>
           <p className="text-xs text-muted-foreground">
             {device?.imported_at
-              ? `Snapshot from ${formatDate(device.imported_at)}`
+              ? `Snapshot from ${formatDateTime(device.imported_at)}`
               : "No snapshot imported"}
           </p>
           <p className="text-xs text-muted-foreground">

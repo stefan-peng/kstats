@@ -55,25 +55,41 @@ export default function App() {
     refreshVersionRef.current += 1
     importInFlightRef.current = true
     setRefreshing(true)
+    let status: DeviceStatus
     try {
-      const status = await api.refresh()
-      previousConnectedRef.current = status.connected
-      setDevice(status)
+      status = await api.refresh()
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Refresh failed"
+      await refreshDeviceStatus().catch(() => undefined)
+      setError(message)
+      if (dashboard) {
+        toast.warning("Kobo import failed; using the previous snapshot")
+      } else {
+        toast.error(message)
+      }
+      importInFlightRef.current = false
+      setRefreshing(false)
+      return false
+    }
+
+    previousConnectedRef.current = status.connected
+    setDevice(status)
+    try {
       setDashboard(await api.dashboard())
       setError(null)
       toast.success("Kobo snapshot refreshed")
       return true
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : "Refresh failed"
-      await refreshDeviceStatus().catch(() => undefined)
-      setError(message)
-      toast.error(message)
-      return false
+      const message = reason instanceof Error ? reason.message : "Unable to load reading data"
+      setDashboard(null)
+      setError(`Kobo snapshot imported, but reading data could not be loaded. ${message}`)
+      toast.error("Kobo snapshot imported, but reading data could not be loaded")
+      return null
     } finally {
       importInFlightRef.current = false
       setRefreshing(false)
     }
-  }, [refreshDeviceStatus])
+  }, [dashboard, refreshDeviceStatus])
 
   const checkDeviceStatus = useCallback(() => {
     if (statusCheckInFlightRef.current) return statusCheckInFlightRef.current
