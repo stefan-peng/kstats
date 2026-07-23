@@ -116,7 +116,6 @@ const filterOptions = {
   languages: ["en"],
 }
 
-let localStorageDescriptor: PropertyDescriptor | undefined
 
 function mockFetch() {
   vi.stubGlobal(
@@ -187,16 +186,11 @@ function mockFetch() {
 }
 
 beforeEach(() => {
-  localStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage")
   window.localStorage.clear()
   mockFetch()
 })
 afterEach(() => {
   cleanup()
-  if (localStorageDescriptor) {
-    Object.defineProperty(window, "localStorage", localStorageDescriptor)
-  }
-  localStorageDescriptor = undefined
   vi.unstubAllGlobals()
 })
 
@@ -276,15 +270,6 @@ test("switches the reading duration chart to a calendar heatmap", async () => {
 })
 
 test("persists the selected reading duration option", async () => {
-  const storedOptions = new Map<string, string>()
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: {
-      getItem: (key: string) => storedOptions.get(key) ?? null,
-      setItem: (key: string, value: string) => storedOptions.set(key, value),
-      clear: () => storedOptions.clear(),
-    },
-  })
   window.localStorage.clear()
   const user = userEvent.setup()
   const firstRender = render(<App />)
