@@ -288,6 +288,7 @@ class Repository:
                 [*parameters, page_size, (page - 1) * page_size],
             ).fetchall()
             source_summary = self._source_summary(connection)
+            filter_options = self.filter_options(connection)
 
         return {
             "items": [serialize_book(row, self.covers_dir) for row in rows],
@@ -295,29 +296,38 @@ class Repository:
             "page_size": page_size,
             "total": total,
             "pages": max(1, math.ceil(total / page_size)),
-            "filter_options": self.filter_options(),
+            "filter_options": filter_options,
             "source_summary": source_summary,
         }
 
-    def filter_options(self) -> dict[str, list[str]]:
-        with self.connect() as connection:
-            options: dict[str, list[str]] = {}
-            for key, column in {
-                "series": "series",
-                "publishers": "publisher",
-                "languages": "language",
-            }.items():
-                rows = connection.execute(
-                    f"""
-                    SELECT DISTINCT {column} AS value
-                    FROM kstats_books
-                    WHERE {column} IS NOT NULL
-                    ORDER BY value COLLATE NOCASE
-                    LIMIT 200
-                    """
-                ).fetchall()
-                options[key] = [row["value"] for row in rows]
+    def filter_options(
+        self, connection: sqlite3.Connection | None = None
+    ) -> dict[str, list[str]]:
+        if connection is not None:
+            return self._fetch_filter_options(connection)
+        with self.connect() as conn:
+            return self._fetch_filter_options(conn)
+
+    @staticmethod
+    def _fetch_filter_options(connection: sqlite3.Connection) -> dict[str, list[str]]:
+        options: dict[str, list[str]] = {}
+        for key, column in {
+            "series": "series",
+            "publishers": "publisher",
+            "languages": "language",
+        }.items():
+            rows = connection.execute(
+                f"""
+                SELECT DISTINCT {column} AS value
+                FROM kstats_books
+                WHERE {column} IS NOT NULL
+                ORDER BY value COLLATE NOCASE
+                LIMIT 200
+                """
+            ).fetchall()
+            options[key] = [row["value"] for row in rows]
         return options
+
 
     def book(self, content_id: str, chart_timezone: ZoneInfo) -> dict[str, Any] | None:
         with self.connect() as connection:
