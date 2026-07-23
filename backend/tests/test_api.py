@@ -7,6 +7,7 @@ from backend.app.config import Settings
 from backend.app.importer import ImportError as KoboImportError
 from backend.app.importer import import_database
 from backend.app.main import create_app
+from backend.app.source_processing import DERIVED_SCHEMA_VERSION
 from backend.tests.conftest import create_fixture_database
 
 
@@ -654,7 +655,7 @@ def test_outdated_derived_schema_is_rebuilt(client, settings):
         version = connection.execute(
             "SELECT value FROM kstats_meta WHERE key = 'schema_version'"
         ).fetchone()[0]
-    assert version == 2
+    assert version == DERIVED_SCHEMA_VERSION
 
 
 def test_books_sort_by_in_progress_remaining_time(client):

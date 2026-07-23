@@ -6,7 +6,7 @@ BOOK_MIME_TYPES = (
     "application/epub+zip",
     "application/pdf",
 )
-DERIVED_SCHEMA_VERSION = 2
+DERIVED_SCHEMA_VERSION = 3
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
@@ -416,6 +416,8 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         CREATE INDEX kstats_books_series_idx ON kstats_books(series);
         CREATE INDEX kstats_books_publisher_idx ON kstats_books(publisher);
         CREATE INDEX kstats_books_language_idx ON kstats_books(language);
+        CREATE INDEX kstats_books_downloaded_idx ON kstats_books(downloaded);
+        CREATE INDEX kstats_books_bookmark_idx ON kstats_books(bookmark_count);
         """
     )
     summary = connection.execute(
