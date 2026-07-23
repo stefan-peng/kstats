@@ -92,11 +92,13 @@ export function LibrarySection({
     if (finishedMonth) setStatus("all")
   }, [finishedMonth])
 
+  const effectiveStatus = finishedMonth ? "all" : status
+
   useEffect(() => {
     const query = new URLSearchParams({
       page: String(page),
       page_size: "20",
-      status: finishedMonth ? "all" : status,
+      status: effectiveStatus,
       sort: sorting[0]?.id ?? "last_read",
       direction: sorting[0]?.desc ? "desc" : "asc",
     })
@@ -126,6 +128,7 @@ export function LibrarySection({
   }, [
     availability,
     debouncedSearch,
+    effectiveStatus,
     finishedMonth,
     highlightFilter,
     language,
@@ -134,7 +137,6 @@ export function LibrarySection({
     source,
     snapshotVersion,
     sorting,
-    status,
     series,
   ])
 

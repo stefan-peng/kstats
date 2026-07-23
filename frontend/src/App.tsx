@@ -21,6 +21,8 @@ export default function App() {
   const importInFlightRef = useRef(false)
   const statusCheckInFlightRef = useRef<Promise<void> | null>(null)
   const refreshVersionRef = useRef(0)
+  const dashboardRef = useRef(dashboard)
+  dashboardRef.current = dashboard
 
   const refreshDeviceStatus = useCallback(async () => {
     const status = await api.deviceStatus()
@@ -62,7 +64,7 @@ export default function App() {
       const message = reason instanceof Error ? reason.message : "Refresh failed"
       await refreshDeviceStatus().catch(() => undefined)
       setError(message)
-      if (dashboard) {
+      if (dashboardRef.current) {
         toast.warning("Kobo import failed; using the previous snapshot")
       } else {
         toast.error(message)
@@ -89,7 +91,7 @@ export default function App() {
       importInFlightRef.current = false
       setRefreshing(false)
     }
-  }, [dashboard, refreshDeviceStatus])
+  }, [refreshDeviceStatus])
 
   const checkDeviceStatus = useCallback(() => {
     if (statusCheckInFlightRef.current) return statusCheckInFlightRef.current
