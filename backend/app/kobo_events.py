@@ -11,9 +11,24 @@ class EventDecodeError(ValueError):
     pass
 
 
+MAX_ELEMENT_BYTES = 10_000_000
+MAX_CONTAINER_ITEMS = 100_000
+MAX_CONTAINER_DEPTH = 100
+
+
+
 class QDataStreamReader:
     def __init__(self, payload: bytes):
         self.stream = io.BytesIO(payload)
+        self.container_depth = 0
+
+    def _enter_container(self) -> None:
+        if self.container_depth >= MAX_CONTAINER_DEPTH:
+            raise EventDecodeError("Exceeded maximum QVariant container depth")
+        self.container_depth += 1
+
+    def _leave_container(self) -> None:
+        self.container_depth -= 1
 
     def _read(self, size: int) -> bytes:
         value = self.stream.read(size)
@@ -35,7 +50,7 @@ class QDataStreamReader:
         byte_length = self.read_u32()
         if byte_length == 0xFFFFFFFF:
             return None
-        if byte_length % 2:
+        if byte_length % 2 or byte_length > MAX_ELEMENT_BYTES:
             raise EventDecodeError("Invalid QString byte length")
         try:
             return self._read(byte_length).decode("utf-16-be")
@@ -46,6 +61,8 @@ class QDataStreamReader:
         length = self.read_u32()
         if length == 0xFFFFFFFF:
             return None
+        if length > MAX_ELEMENT_BYTES:
+            raise EventDecodeError("Invalid QByteArray length")
         return self._read(length)
 
     def read_qvariant(self) -> Any:
@@ -83,19 +100,36 @@ class QDataStreamReader:
         return reader()
 
     def read_qvariant_list(self) -> list[Any]:
-        return [self.read_qvariant() for _ in range(self.read_u32())]
+        self._enter_container()
+        try:
+            count = self.read_u32()
+            if count > MAX_CONTAINER_ITEMS:
+                raise EventDecodeError("Exceeded maximum QVariant list size")
+            return [self.read_qvariant() for _ in range(count)]
+        finally:
+            self._leave_container()
 
     def read_qstring_list(self) -> list[str | None]:
-        return [self.read_qstring() for _ in range(self.read_u32())]
+        count = self.read_u32()
+        if count > MAX_CONTAINER_ITEMS:
+            raise EventDecodeError("Exceeded maximum QString list size")
+        return [self.read_qstring() for _ in range(count)]
 
     def read_qvariant_map(self) -> dict[str, Any]:
-        values: dict[str, Any] = {}
-        for _ in range(self.read_u32()):
-            key = self.read_qstring()
-            if key is None:
-                raise EventDecodeError("Kobo event map contains a null key")
-            values[key] = self.read_qvariant()
-        return values
+        self._enter_container()
+        try:
+            count = self.read_u32()
+            if count > MAX_CONTAINER_ITEMS:
+                raise EventDecodeError("Exceeded maximum QVariant map size")
+            values: dict[str, Any] = {}
+            for _ in range(count):
+                key = self.read_qstring()
+                if key is None:
+                    raise EventDecodeError("Kobo event map contains a null key")
+                values[key] = self.read_qvariant()
+            return values
+        finally:
+            self._leave_container()
 
     def finished(self) -> bool:
         return self.stream.read(1) == b""

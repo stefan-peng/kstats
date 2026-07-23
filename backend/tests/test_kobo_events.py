@@ -3,6 +3,8 @@ import struct
 import pytest
 
 from backend.app.kobo_events import (
+    MAX_CONTAINER_DEPTH,
+    EventDecodeError,
     decode_event_payload,
     parse_dictionary_event,
     parse_reading_event,
@@ -40,6 +42,22 @@ def test_decodes_qt_invalid_variant_value():
     )
 
     assert decode_event_payload(payload) == {"StartPercentage": None}
+
+
+def test_rejects_excessively_nested_variant_containers():
+    key = "x".encode("utf-16-be")
+    value = struct.pack(">IB", 1, 0) + b"\x01"
+    for _ in range(MAX_CONTAINER_DEPTH):
+        value = (
+            struct.pack(">IBI", 8, 0, 1)
+            + struct.pack(">I", len(key))
+            + key
+            + value
+        )
+    payload = struct.pack(">I", 1) + struct.pack(">I", len(key)) + key + value
+
+    with pytest.raises(EventDecodeError, match="container depth"):
+        decode_event_payload(payload)
 
 
 def test_dictionary_lookup_preserves_source_spelling():

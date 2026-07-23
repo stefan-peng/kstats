@@ -30,6 +30,9 @@ def _session_groups(timestamps: list[int], sessions: int) -> list[list[int]]:
     return groups
 
 
+MAX_INTERVAL_DAYS = 365
+
+
 def _add_interval_weights(
     weights: dict[str, float], start: int, end: int, timezone: ZoneInfo
 ) -> None:
@@ -40,6 +43,8 @@ def _add_interval_weights(
 
     cursor = datetime.fromtimestamp(start, timezone)
     finish = datetime.fromtimestamp(end, timezone)
+    if (finish.date() - cursor.date()).days > MAX_INTERVAL_DAYS:
+        raise ValueError("Interval duration exceeds maximum allowed days")
     while cursor.date() < finish.date():
         next_midnight = datetime.combine(
             cursor.date() + timedelta(days=1), time.min, tzinfo=timezone
@@ -47,6 +52,7 @@ def _add_interval_weights(
         weights[cursor.date().isoformat()] += next_midnight.timestamp() - cursor.timestamp()
         cursor = next_midnight
     weights[cursor.date().isoformat()] += finish.timestamp() - cursor.timestamp()
+
 
 
 def _date_weights(
