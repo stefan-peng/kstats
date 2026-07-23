@@ -47,19 +47,17 @@ def _cover_destination(settings: Settings, image_id: str, variant: str) -> Path:
     return settings.covers_dir / f"{image_id}-{variant}.jpg"
 
 
-def _cover_index(source_root: Path) -> dict[str, Path]:
-    expected_suffixes = {f" - {suffix}" for suffix in COVER_VARIANTS.values()}
+def _cover_index(source_root: Path, expected_names: set[str]) -> dict[str, Path]:
     covers: dict[str, Path] = {}
+    if not expected_names:
+        return covers
     try:
-        candidates = source_root.rglob("*")
-        for candidate in candidates:
-            try:
-                if not candidate.is_file():
-                    continue
-            except OSError:
-                continue
-            if any(candidate.name.endswith(suffix) for suffix in expected_suffixes):
-                covers.setdefault(candidate.name, candidate)
+        for root, _, files in os.walk(source_root):
+            for name in files:
+                if name in expected_names:
+                    covers[name] = Path(root) / name
+                    if len(covers) == len(expected_names):
+                        return covers
     except OSError:
         return covers
     return covers
@@ -88,20 +86,33 @@ def _copy_covers(settings: Settings, source: Path) -> None:
     if not source_root.is_dir() or not settings.snapshot_db.is_file():
         return
 
-    settings.covers_dir.mkdir(parents=True, exist_ok=True)
-    covers = _cover_index(source_root)
     with closing(sqlite3.connect(settings.snapshot_db)) as connection:
         rows = connection.execute(
-            f"""
+            """
             SELECT DISTINCT image_id
             FROM kstats_books
             WHERE NULLIF(image_id, '') IS NOT NULL
             """,
         ).fetchall()
 
-    for (image_id,) in rows:
-        if not isinstance(image_id, str) or "/" in image_id or "\\" in image_id:
-            continue
+    valid_image_ids = [
+        image_id
+        for (image_id,) in rows
+        if isinstance(image_id, str) and "/" not in image_id and "\\" not in image_id
+    ]
+    if not valid_image_ids:
+        return
+
+    expected_names = {
+        f"{image_id} - {COVER_VARIANTS[variant]}"
+        for image_id in valid_image_ids
+        for variant in COVER_VARIANTS
+    }
+
+    settings.covers_dir.mkdir(parents=True, exist_ok=True)
+    covers = _cover_index(source_root, expected_names)
+
+    for image_id in valid_image_ids:
         for variant in COVER_VARIANTS:
             try:
                 _copy_cover_variant(
@@ -112,6 +123,7 @@ def _copy_covers(settings: Settings, source: Path) -> None:
                 )
             except OSError:
                 continue
+
 
 
 def import_database(settings: Settings) -> dict[str, str | bool | None]:
