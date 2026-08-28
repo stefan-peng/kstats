@@ -10,6 +10,14 @@ import { OverviewPage } from "./components/overview-page"
 
 const DEVICE_STATUS_POLL_MS = 10_000
 
+function sameDeviceStatus(left: DeviceStatus | null, right: DeviceStatus) {
+  return left !== null &&
+    left.connected === right.connected &&
+    left.snapshot_available === right.snapshot_available &&
+    left.imported_at === right.imported_at &&
+    left.source === right.source
+}
+
 export default function App() {
   const [device, setDevice] = useState<DeviceStatus | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
@@ -27,7 +35,7 @@ export default function App() {
   const refreshDeviceStatus = useCallback(async () => {
     const status = await api.deviceStatus()
     previousConnectedRef.current = status.connected
-    setDevice(status)
+    setDevice((current) => (sameDeviceStatus(current, status) ? current : status))
     return status
   }, [])
 

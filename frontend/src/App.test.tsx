@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { Profiler } from "react"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import App from "./App"
 import { BookDetailDialog } from "./components/book-detail-dialog"
@@ -320,6 +321,24 @@ test("shows an empty state when detailed reading telemetry is unavailable", asyn
 test("shows an explicit device status while loading", () => {
   render(<App />)
   expect(screen.getByText("Checking Kobo")).toBeVisible()
+})
+
+test("does not rerender the dashboard when device status is unchanged", async () => {
+  const onRender = vi.fn()
+  render(
+    <Profiler id="app" onRender={onRender}>
+      <App />
+    </Profiler>,
+  )
+
+  await screen.findByRole("heading", { name: "Reading overview" })
+  const rendersAfterLoad = onRender.mock.calls.length
+
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"))
+  })
+
+  expect(onRender).toHaveBeenCalledTimes(rendersAfterLoad)
 })
 
 test("does not claim to use a snapshot when none is available", async () => {
