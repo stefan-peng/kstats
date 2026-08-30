@@ -1,6 +1,6 @@
 import math
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -8,6 +8,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from .config import Settings
+from .importer import prepare_snapshot
 from .kobo_events import (
     DICTIONARY_EVENT_TYPE,
     READING_EVENT_TYPE,
@@ -17,7 +18,7 @@ from .kobo_events import (
     parse_reading_event,
 )
 from .reading_duration import aggregate_reading_duration
-from .source_processing import SourceType, ensure_derived_tables
+from .source_processing import SourceType, derived_tables_current
 
 BOOK_SELECT = """
 SELECT
@@ -76,10 +77,18 @@ class Repository:
     def connect(self) -> Iterator[sqlite3.Connection]:
         if not self.database.is_file():
             raise FileNotFoundError("No Kobo snapshot is available")
-        connection = sqlite3.connect(self.database, check_same_thread=False)
+        database_uri = f"{self.database.resolve().as_uri()}?mode=ro"
+        connection = sqlite3.connect(
+            database_uri, uri=True, check_same_thread=False
+        )
+        if not derived_tables_current(connection):
+            connection.close()
+            prepare_snapshot(self.settings)
+            connection = sqlite3.connect(
+                database_uri, uri=True, check_same_thread=False
+            )
         connection.row_factory = sqlite3.Row
         try:
-            ensure_derived_tables(connection)
             yield connection
         finally:
             connection.close()
@@ -151,12 +160,11 @@ class Repository:
                 """
             ).fetchall()
 
-            reading_events: list[dict[str, Any]] = []
             skipped_reading_rows = 0
             has_event_table = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Event'"
             ).fetchone()
-            event_rows = (
+            event_rows: Iterable[sqlite3.Row] = (
                 connection.execute(
                     """
                     SELECT CAST(ExtraData AS BLOB) AS extra_data
@@ -164,21 +172,29 @@ class Repository:
                     WHERE EventType = ?
                     """,
                     [READING_EVENT_TYPE],
-                ).fetchall()
+                )
                 if has_event_table
                 else []
             )
-            for event_row in event_rows:
-                try:
-                    payload = decode_event_payload(event_row["extra_data"])
-                except EventDecodeError:
-                    skipped_reading_rows += 1
-                    continue
-                reading_event = parse_reading_event(payload)
-                if reading_event is None:
-                    skipped_reading_rows += 1
-                    continue
-                reading_events.append(reading_event)
+
+            def reading_events() -> Iterator[dict[str, Any]]:
+                nonlocal skipped_reading_rows
+                for event_row in event_rows:
+                    try:
+                        payload = decode_event_payload(event_row["extra_data"])
+                    except EventDecodeError:
+                        skipped_reading_rows += 1
+                        continue
+                    reading_event = parse_reading_event(payload)
+                    if reading_event is None:
+                        skipped_reading_rows += 1
+                        continue
+                    yield reading_event
+
+            reading_duration = aggregate_reading_duration(
+                reading_events(), chart_timezone
+            )
+            reading_duration["skipped_rows"] += skipped_reading_rows
 
             source_summary = self._source_summary(connection)
 
@@ -198,11 +214,7 @@ class Repository:
             "monthly_completions": [
                 dict(row) for row in reversed(monthly_rows) if row["month"]
             ],
-            "reading_duration": aggregate_reading_duration(
-                reading_events,
-                chart_timezone,
-                skipped_rows=skipped_reading_rows,
-            ),
+            "reading_duration": reading_duration,
             "continue_reading": [
                 serialize_book(row, self.covers_dir) for row in continue_rows
             ],
@@ -351,8 +363,8 @@ class Repository:
                 [content_id],
             ).fetchall()
             dictionary_lookups: dict[tuple[str, str], dict[str, Any]] = {}
-            reading_events: list[dict[str, Any]] = []
             skipped_reading_rows = 0
+            reading_duration = aggregate_reading_duration([], chart_timezone)
             if connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Event'"
             ).fetchone():
@@ -383,18 +395,26 @@ class Repository:
                     WHERE ContentID = ? AND EventType = ?
                     """,
                     [content_id, READING_EVENT_TYPE],
-                ).fetchall()
-                for event_row in reading_rows:
-                    try:
-                        payload = decode_event_payload(event_row["ExtraData"])
-                    except EventDecodeError:
-                        skipped_reading_rows += 1
-                        continue
-                    reading_event = parse_reading_event(payload)
-                    if reading_event is None:
-                        skipped_reading_rows += 1
-                        continue
-                    reading_events.append(reading_event)
+                )
+
+                def book_reading_events() -> Iterator[dict[str, Any]]:
+                    nonlocal skipped_reading_rows
+                    for event_row in reading_rows:
+                        try:
+                            payload = decode_event_payload(event_row["ExtraData"])
+                        except EventDecodeError:
+                            skipped_reading_rows += 1
+                            continue
+                        reading_event = parse_reading_event(payload)
+                        if reading_event is None:
+                            skipped_reading_rows += 1
+                            continue
+                        yield reading_event
+
+                reading_duration = aggregate_reading_duration(
+                    book_reading_events(), chart_timezone
+                )
+                reading_duration["skipped_rows"] += skipped_reading_rows
         book = serialize_book(row, self.covers_dir)
         image_id = row["image_id"]
         full_cover = self.covers_dir / f"{image_id}-full.jpg" if image_id else None
@@ -412,9 +432,5 @@ class Repository:
                 (lookup["dictionary"] or "").casefold(),
             ),
         )
-        book["reading_duration"] = aggregate_reading_duration(
-            reading_events,
-            chart_timezone,
-            skipped_rows=skipped_reading_rows,
-        )
+        book["reading_duration"] = reading_duration
         return book

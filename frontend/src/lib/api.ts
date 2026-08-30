@@ -32,21 +32,24 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  deviceStatus: () => request<DeviceStatus>("/api/device/status"),
-  refresh: () => request<DeviceStatus>("/api/import", { method: "POST" }),
-  dashboard: () => {
+  deviceStatus: (signal?: AbortSignal) =>
+    request<DeviceStatus>("/api/device/status", { signal }),
+  refresh: (signal?: AbortSignal) =>
+    request<DeviceStatus>("/api/import", { method: "POST", signal }),
+  dashboard: (signal?: AbortSignal) => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     return request<DashboardData>(
       `/api/dashboard?timezone=${encodeURIComponent(timezone)}`,
+      { signal },
     )
   },
-  books: (query: URLSearchParams) =>
-    request<BooksResponse>(`/api/books?${query.toString()}`),
-  book: (contentId: string) => {
+  books: (query: URLSearchParams, signal?: AbortSignal) =>
+    request<BooksResponse>(`/api/books?${query.toString()}`, { signal }),
+  book: (contentId: string, signal?: AbortSignal) => {
     const query = new URLSearchParams({
       content_id: contentId,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     })
-    return request<BookDetail>(`/api/book?${query.toString()}`)
+    return request<BookDetail>(`/api/book?${query.toString()}`, { signal })
   },
 }

@@ -419,7 +419,7 @@ test("imports Kobo data when a disconnected Kobo reconnects", async () => {
         })
       }
       if (url.includes("/api/import")) {
-        expect(init).toEqual({ method: "POST" })
+        expect(init).toEqual({ method: "POST", signal: expect.any(AbortSignal) })
         return Response.json({
           connected: true,
           snapshot_available: true,
@@ -440,7 +440,10 @@ test("imports Kobo data when a disconnected Kobo reconnects", async () => {
   })
 
   await waitFor(() => {
-    expect(fetch).toHaveBeenCalledWith("/api/import", { method: "POST" })
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/import",
+      { method: "POST", signal: expect.any(AbortSignal) },
+    )
   })
   expect(await screen.findByText("Kobo connected")).toBeVisible()
   expect(await screen.findByRole("heading", { name: "Reading overview" })).toBeVisible()
@@ -551,6 +554,74 @@ test("serializes overlapping reconnect status checks", async () => {
   await waitFor(() => expect(importCalls).toBe(1))
 })
 
+test("does not let an older status response overwrite a completed refresh", async () => {
+  const user = userEvent.setup()
+  let statusCalls = 0
+  let staleStatusSignal: AbortSignal | undefined
+  let resolveStaleStatus!: (response: Response) => void
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/device/status")) {
+        statusCalls += 1
+        if (statusCalls === 1) {
+          return Promise.resolve(Response.json({
+            connected: true,
+            snapshot_available: true,
+            imported_at: "2026-06-18T12:00:00Z",
+            source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+          }))
+        }
+        staleStatusSignal = init?.signal ?? undefined
+        return new Promise((resolve) => {
+          resolveStaleStatus = resolve
+        })
+      }
+      if (url.includes("/api/import")) {
+        return Promise.resolve(Response.json({
+          connected: true,
+          snapshot_available: true,
+          imported_at: "2026-06-18T13:00:00Z",
+          source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+        }))
+      }
+      if (url.includes("/api/dashboard")) return Promise.resolve(Response.json(dashboard))
+      if (url.includes("/api/books")) {
+        return Promise.resolve(Response.json({
+          items: dashboard.continue_reading,
+          page: 1,
+          page_size: 20,
+          total: 1,
+          pages: 1,
+          filter_options: filterOptions,
+          source_summary: dashboard.source_summary,
+        }))
+      }
+      return Promise.reject(new Error(`Unhandled request: ${url}`))
+    }),
+  )
+
+  render(<App />)
+  await screen.findByRole("heading", { name: "Reading overview" })
+  window.dispatchEvent(new Event("focus"))
+  await waitFor(() => expect(statusCalls).toBe(2))
+
+  await user.click(screen.getByRole("button", { name: "Refresh from Kobo" }))
+  await waitFor(() => expect(staleStatusSignal?.aborted).toBe(true))
+
+  resolveStaleStatus(Response.json({
+    connected: false,
+    snapshot_available: true,
+    imported_at: "2026-06-18T12:00:00Z",
+    source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+  }))
+  await act(async () => undefined)
+
+  expect(screen.getByText("Kobo connected")).toBeVisible()
+  expect(screen.queryByText("Kobo disconnected")).not.toBeInTheDocument()
+})
+
 test("does not let an initial dashboard response overwrite refreshed data", async () => {
   let statusCalls = 0
   let dashboardCalls = 0
@@ -628,7 +699,7 @@ test("supports library search and sortable headers on the dashboard", async () =
   await waitFor(() => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("sort=remaining_time"),
-      undefined,
+      { signal: expect.any(AbortSignal) },
     )
   })
 
@@ -636,7 +707,7 @@ test("supports library search and sortable headers on the dashboard", async () =
   await waitFor(() => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("search=Current"),
-      undefined,
+      { signal: expect.any(AbortSignal) },
     )
   })
   expect(await screen.findByText(/1 book; 3,375 custom\/catalog rows ignored/)).toBeVisible()
@@ -692,7 +763,7 @@ test("filters the embedded library from a selected completion month", async () =
   await waitFor(() => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("status=reading"),
-      undefined,
+      { signal: expect.any(AbortSignal) },
     )
   })
 
@@ -993,7 +1064,12 @@ test("refreshes the device snapshot", async () => {
   render(<App />)
   const button = await screen.findByRole("button", { name: "Refresh from Kobo" })
   await user.click(button)
-  await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/import", { method: "POST" }))
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/import",
+      { method: "POST", signal: expect.any(AbortSignal) },
+    ),
+  )
 })
 
 test("keeps showing the previous snapshot when an import is corrupted", async () => {

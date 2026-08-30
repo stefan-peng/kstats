@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import Settings
-from .importer import ImportError, device_status, import_database
+from .importer import ImportError, device_status, import_database, prepare_snapshot
 from .kobo_events import EventDecodeError
 from .repository import Repository
 
@@ -22,6 +22,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             and app_settings.resolve_source_db().is_file()
         ):
             import_database(app_settings)
+        else:
+            prepare_snapshot(app_settings)
         yield
 
     app = FastAPI(title="Kobo Stats", lifespan=lifespan)

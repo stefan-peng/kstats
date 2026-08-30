@@ -18,6 +18,10 @@ function sameDeviceStatus(left: DeviceStatus | null, right: DeviceStatus) {
     left.source === right.source
 }
 
+function isAbortError(reason: unknown) {
+  return reason instanceof Error && reason.name === "AbortError"
+}
+
 export default function App() {
   const [device, setDevice] = useState<DeviceStatus | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
@@ -28,49 +32,70 @@ export default function App() {
   const previousConnectedRef = useRef<boolean | null>(null)
   const importInFlightRef = useRef(false)
   const statusCheckInFlightRef = useRef<Promise<void> | null>(null)
+  const statusAbortRef = useRef<AbortController | null>(null)
+  const refreshAbortRef = useRef<AbortController | null>(null)
+  const statusVersionRef = useRef(0)
   const refreshVersionRef = useRef(0)
   const dashboardRef = useRef(dashboard)
   dashboardRef.current = dashboard
 
-  const refreshDeviceStatus = useCallback(async () => {
-    const status = await api.deviceStatus()
+  const refreshDeviceStatus = useCallback(async (signal?: AbortSignal) => {
+    const statusVersion = ++statusVersionRef.current
+    const status = await api.deviceStatus(signal)
+    if (statusVersionRef.current !== statusVersion || signal?.aborted) return status
     previousConnectedRef.current = status.connected
     setDevice((current) => (sameDeviceStatus(current, status) ? current : status))
     return status
   }, [])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const refreshVersion = refreshVersionRef.current
-    const status = await refreshDeviceStatus()
+    const status = await refreshDeviceStatus(signal)
+    if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
     if (!status.snapshot_available) {
       setDashboard(null)
       setError("No Kobo snapshot is available yet.")
       return
     }
-    const nextDashboard = await api.dashboard()
-    if (refreshVersionRef.current !== refreshVersion) return
+    const nextDashboard = await api.dashboard(signal)
+    if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
     setDashboard(nextDashboard)
     setError(null)
   }, [refreshDeviceStatus])
 
   useEffect(() => {
-    load()
-      .catch((reason: Error) => setError(reason.message))
-      .finally(() => setLoading(false))
+    const controller = new AbortController()
+    load(controller.signal)
+      .catch((reason: Error) => {
+        if (!isAbortError(reason)) setError(reason.message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
   }, [load])
 
   const refresh = useCallback(async () => {
     if (importInFlightRef.current) return
 
     refreshVersionRef.current += 1
+    statusVersionRef.current += 1
+    statusAbortRef.current?.abort()
     importInFlightRef.current = true
     setRefreshing(true)
+    const controller = new AbortController()
+    refreshAbortRef.current = controller
     let status: DeviceStatus
     try {
-      status = await api.refresh()
+      status = await api.refresh(controller.signal)
     } catch (reason) {
+      if (isAbortError(reason)) {
+        importInFlightRef.current = false
+        if (refreshAbortRef.current === controller) refreshAbortRef.current = null
+        return false
+      }
       const message = reason instanceof Error ? reason.message : "Refresh failed"
-      await refreshDeviceStatus().catch(() => undefined)
+      await refreshDeviceStatus(controller.signal).catch(() => undefined)
       setError(message)
       if (dashboardRef.current) {
         toast.warning("Kobo import failed; using the previous snapshot")
@@ -78,18 +103,21 @@ export default function App() {
         toast.error(message)
       }
       importInFlightRef.current = false
+      if (refreshAbortRef.current === controller) refreshAbortRef.current = null
       setRefreshing(false)
       return false
     }
 
+    statusVersionRef.current += 1
     previousConnectedRef.current = status.connected
     setDevice(status)
     try {
-      setDashboard(await api.dashboard())
+      setDashboard(await api.dashboard(controller.signal))
       setError(null)
       toast.success("Kobo snapshot refreshed")
       return true
     } catch (reason) {
+      if (isAbortError(reason)) return false
       const message = reason instanceof Error ? reason.message : "Unable to load reading data"
       setDashboard(null)
       setError(`Kobo snapshot imported, but reading data could not be loaded. ${message}`)
@@ -97,7 +125,10 @@ export default function App() {
       return null
     } finally {
       importInFlightRef.current = false
-      setRefreshing(false)
+      if (refreshAbortRef.current === controller) {
+        refreshAbortRef.current = null
+      }
+      if (!controller.signal.aborted) setRefreshing(false)
     }
   }, [refreshDeviceStatus])
 
@@ -105,10 +136,12 @@ export default function App() {
     if (statusCheckInFlightRef.current) return statusCheckInFlightRef.current
 
     const check = (async () => {
+      const controller = new AbortController()
+      statusAbortRef.current = controller
       const wasDisconnected = previousConnectedRef.current === false
-      const status = await refreshDeviceStatus()
+      const status = await refreshDeviceStatus(controller.signal)
 
-      if (wasDisconnected && status.connected) {
+      if (!controller.signal.aborted && wasDisconnected && status.connected) {
         const refreshed = await refresh()
         if (refreshed === false) previousConnectedRef.current = false
       }
@@ -116,6 +149,7 @@ export default function App() {
     const trackedCheck = check.finally(() => {
       if (statusCheckInFlightRef.current === trackedCheck) {
         statusCheckInFlightRef.current = null
+        statusAbortRef.current = null
       }
     })
     statusCheckInFlightRef.current = trackedCheck
@@ -131,6 +165,8 @@ export default function App() {
     return () => {
       window.clearInterval(interval)
       window.removeEventListener("focus", check)
+      statusAbortRef.current?.abort()
+      refreshAbortRef.current?.abort()
     }
   }, [checkDeviceStatus])
 

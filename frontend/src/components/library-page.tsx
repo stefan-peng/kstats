@@ -114,16 +114,22 @@ export function LibrarySection({
     if (series !== "all") query.set("series", series)
     if (publisher !== "all") query.set("publisher", publisher)
     if (language !== "all") query.set("language", language)
-    let active = true
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
     api
-      .books(query)
-      .then((response) => active && setData(response))
-      .catch((reason: Error) => active && setError(reason.message))
-      .finally(() => active && setLoading(false))
+      .books(query, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted) setData(response)
+      })
+      .catch((reason: Error) => {
+        if (reason.name !== "AbortError") setError(reason.message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => {
-      active = false
+      controller.abort()
     }
   }, [
     availability,

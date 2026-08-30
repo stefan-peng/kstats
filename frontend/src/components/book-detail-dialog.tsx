@@ -91,23 +91,23 @@ export function BookDetailDialog({
       setErrorResult(null)
       return
     }
-    let active = true
+    const controller = new AbortController()
     setBookResult(null)
     setErrorResult(null)
     api
-      .book(contentId)
+      .book(contentId, controller.signal)
       .then((data) => {
-        if (!active) return
+        if (controller.signal.aborted) return
         setBookResult({ contentId, book: data })
         setErrorResult(null)
       })
       .catch((reason: Error) => {
-        if (!active) return
+        if (reason.name === "AbortError") return
         setBookResult(null)
         setErrorResult({ contentId, message: reason.message })
       })
     return () => {
-      active = false
+      controller.abort()
     }
   }, [contentId])
 

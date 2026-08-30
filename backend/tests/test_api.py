@@ -1,4 +1,8 @@
+import os
 import sqlite3
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -634,7 +638,7 @@ def test_removed_history_is_not_assigned_to_multiple_canonical_books(client, set
     ] == 0
 
 
-def test_outdated_derived_schema_is_rebuilt(client, settings):
+def test_outdated_derived_schema_is_rebuilt(client, settings, monkeypatch):
     assert client.get("/api/book", params={"content_id": "book-reading"}).json()[
         "remaining_seconds"
     ] == 15567
@@ -647,6 +651,46 @@ def test_outdated_derived_schema_is_rebuilt(client, settings):
         connection.execute(
             "UPDATE kstats_meta SET value = 1 WHERE key = 'schema_version'"
         )
+
+    original_connect = sqlite3.connect
+    original_replace = os.replace
+    source_connections = []
+
+    class TrackedConnection:
+        def __init__(self, connection):
+            self.connection = connection
+            self.closed = False
+
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+
+        @property
+        def row_factory(self):
+            return self.connection.row_factory
+
+        @row_factory.setter
+        def row_factory(self, value):
+            self.connection.row_factory = value
+
+        def close(self):
+            self.closed = True
+            self.connection.close()
+
+    def tracked_connect(database, *args, **kwargs):
+        connection = original_connect(database, *args, **kwargs)
+        if isinstance(database, str) and database.startswith("file:"):
+            tracked = TrackedConnection(connection)
+            source_connections.append(tracked)
+            return tracked
+        return connection
+
+    def windows_compatible_replace(source, destination):
+        assert source_connections
+        assert all(connection.closed for connection in source_connections)
+        original_replace(source, destination)
+
+    monkeypatch.setattr("backend.app.importer.sqlite3.connect", tracked_connect)
+    monkeypatch.setattr("backend.app.importer.os.replace", windows_compatible_replace)
 
     detail = client.get("/api/book", params={"content_id": "book-reading"}).json()
 
@@ -816,6 +860,45 @@ def test_failed_import_keeps_previous_snapshot(settings):
     assert before == after == 4
 
 
+def test_concurrent_imports_are_serialized_and_publish_complete_snapshots(
+    settings, monkeypatch
+):
+    from backend.app import importer
+
+    first_rebuild_started = threading.Event()
+    release_first_rebuild = threading.Event()
+    rebuild_count = 0
+    count_lock = threading.Lock()
+    original_rebuild = importer.rebuild_derived_tables
+
+    def controlled_rebuild(connection):
+        nonlocal rebuild_count
+        with count_lock:
+            rebuild_count += 1
+            current = rebuild_count
+        if current == 1:
+            first_rebuild_started.set()
+            assert release_first_rebuild.wait(timeout=5)
+        original_rebuild(connection)
+
+    monkeypatch.setattr(importer, "rebuild_derived_tables", controlled_rebuild)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(import_database, settings)
+        assert first_rebuild_started.wait(timeout=5)
+        second = executor.submit(import_database, settings)
+        time.sleep(0.05)
+        assert not second.done()
+        release_first_rebuild.set()
+        assert first.result(timeout=5)["snapshot_available"] is True
+        assert second.result(timeout=5)["snapshot_available"] is True
+
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert connection.execute("SELECT COUNT(*) FROM kstats_books").fetchone() == (3,)
+    assert list(settings.data_dir.glob(".KoboReader-*.sqlite.tmp")) == []
+
+
 def test_failed_integrity_import_removes_temporary_snapshot(settings, monkeypatch):
     class SourceConnection:
         def backup(self, destination):
@@ -915,6 +998,36 @@ def test_import_copies_available_cover_assets_best_effort(tmp_path):
     assert status["snapshot_available"] is True
     assert (settings.covers_dir / f"{image_id}-grid.jpg").is_file()
     assert not (settings.covers_dir / f"{image_id}-full.jpg").exists()
+
+
+def test_import_prunes_cover_that_is_no_longer_available(tmp_path):
+    source = tmp_path / "KOBOeReader" / ".kobo" / "KoboReader.sqlite"
+    source.parent.mkdir(parents=True)
+    create_fixture_database(source)
+    image_id = "temporary-cover"
+    with sqlite3.connect(source) as connection:
+        connection.execute(
+            "UPDATE content SET ImageId = ? WHERE ContentID = 'book-reading'",
+            (image_id,),
+        )
+    source_cover = (
+        tmp_path
+        / "KOBOeReader"
+        / ".kobo-images"
+        / f"{image_id} - N3_LIBRARY_GRID.parsed"
+    )
+    source_cover.parent.mkdir(parents=True)
+    source_cover.write_bytes(b"\xff\xd8\xffgrid")
+    settings = Settings(source_db=source, data_dir=tmp_path / "data")
+
+    import_database(settings)
+    cached_cover = settings.covers_dir / f"{image_id}-grid.jpg"
+    assert cached_cover.is_file()
+
+    source_cover.unlink()
+    import_database(settings)
+
+    assert not cached_cover.exists()
 
 
 def test_import_succeeds_without_cover_directory(tmp_path):

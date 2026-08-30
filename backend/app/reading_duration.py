@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -89,7 +90,7 @@ def _allocate_seconds(seconds: int, weights: dict[str, float]) -> dict[str, int]
 
 
 def aggregate_reading_duration(
-    events: list[dict[str, Any]], timezone: ZoneInfo, *, skipped_rows: int = 0
+    events: Iterable[dict[str, Any]], timezone: ZoneInfo, *, skipped_rows: int = 0
 ) -> dict[str, Any]:
     daily: dict[str, int] = defaultdict(int)
     source_seconds = 0
