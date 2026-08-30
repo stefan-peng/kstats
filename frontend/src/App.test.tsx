@@ -814,7 +814,17 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).getByText("emphasis").tagName).toBe("EM")
   expect(within(dialog).getByText("unsafe link")).not.toHaveAttribute("href")
   expect(within(dialog).queryByText("unsafe text")).not.toBeInTheDocument()
-  expect(within(dialog).getByText("Highlighted text")).toBeVisible()
+  expect(within(dialog).getByText("Highlighted text")).toHaveClass(
+    "whitespace-pre-wrap",
+    "break-words",
+  )
+  expect(within(dialog).getByText("Note")).toBeVisible()
+  expect(within(dialog).getByText("A note")).toHaveClass(
+    "whitespace-pre-wrap",
+    "break-words",
+  )
+  expect(within(dialog).getByText("1 highlight or note")).toBeVisible()
+  expect(within(dialog).getByText("Highlights and notes (1)")).toBeVisible()
   expect(within(dialog).getByLabelText("Current Book cover")).toBeVisible()
   expect(within(dialog).queryByText("Summary")).not.toBeInTheDocument()
   expect(within(dialog).queryByText("Snapshot file")).not.toBeInTheDocument()

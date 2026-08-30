@@ -18,7 +18,11 @@ from .kobo_events import (
     parse_reading_event,
 )
 from .reading_duration import aggregate_reading_duration
-from .source_processing import SourceType, derived_tables_current
+from .source_processing import (
+    DISPLAYABLE_BOOKMARK_FILTER,
+    SourceType,
+    derived_tables_current,
+)
 
 BOOK_SELECT = """
 SELECT
@@ -356,10 +360,9 @@ class Repository:
                        ChapterProgress AS chapter_progress, Color AS color
                 FROM Bookmark
                 WHERE VolumeID = ?
-                  AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT)))
-                      IN ('0', 'false')
+                  AND {DISPLAYABLE_BOOKMARK_FILTER}
                 ORDER BY DateCreated DESC
-                """,
+                """.format(DISPLAYABLE_BOOKMARK_FILTER=DISPLAYABLE_BOOKMARK_FILTER),
                 [content_id],
             ).fetchall()
             dictionary_lookups: dict[tuple[str, str], dict[str, Any]] = {}

@@ -141,7 +141,9 @@ export function BookDetailDialog({
                     {book.downloaded && <Badge variant="outline">Downloaded</Badge>}
                     {book.bookmark_count > 0 && (
                       <Badge variant="secondary">
-                        {formatNumber(book.bookmark_count)} highlights
+                        {formatNumber(book.bookmark_count)} {book.bookmark_count === 1
+                          ? "highlight or note"
+                          : "highlights or notes"}
                       </Badge>
                     )}
                   </div>
@@ -393,11 +395,20 @@ export function BookDetailDialog({
                       key={bookmark.id}
                       className="flex flex-col gap-2 border-l-2 border-primary pl-4"
                     >
-                      {bookmark.text && <p className="text-sm">{bookmark.text}</p>}
-                      {bookmark.annotation && (
-                        <p className="text-sm italic text-muted-foreground">
-                          {bookmark.annotation}
+                      {bookmark.text && (
+                        <p className="whitespace-pre-wrap break-words text-sm">
+                          {bookmark.text}
                         </p>
+                      )}
+                      {bookmark.annotation && (
+                        <div className="flex flex-col gap-1">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Note
+                          </p>
+                          <p className="whitespace-pre-wrap break-words text-sm italic text-muted-foreground">
+                            {bookmark.annotation}
+                          </p>
+                        </div>
                       )}
                       <footer className="text-xs text-muted-foreground">
                         {formatDate(bookmark.created_at)}

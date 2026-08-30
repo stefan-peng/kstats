@@ -210,6 +210,14 @@ def create_fixture_database(path: Path) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        INSERT INTO Bookmark VALUES (
+            'page-bookmark', 'book-reading', NULL, NULL,
+            'bookmark', '2026-06-17T12:00:00Z', 0.6, 0, 'false'
+        )
+        """
+    )
     connection.executemany(
         """
         INSERT INTO Event (

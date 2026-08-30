@@ -6,7 +6,7 @@ BOOK_MIME_TYPES = (
     "application/epub+zip",
     "application/pdf",
 )
-DERIVED_SCHEMA_VERSION = 3
+DERIVED_SCHEMA_VERSION = 4
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
@@ -56,6 +56,16 @@ REMOVED_ACTIVITY_FILTER = """
     COALESCE(removed.ReadStatus, 0) != 0
     OR COALESCE(removed.TimeSpentReading, 0) > 0
     OR COALESCE(removed.___PercentRead, 0) > 0
+)
+"""
+
+DISPLAYABLE_BOOKMARK_FILTER = """
+(
+    LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT))) IN ('0', 'false')
+    AND (
+        NULLIF(TRIM(COALESCE(Text, '')), '') IS NOT NULL
+        OR NULLIF(TRIM(COALESCE(Annotation, '')), '') IS NOT NULL
+    )
 )
 """
 
@@ -394,7 +404,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
                 SELECT COUNT(*)
                 FROM Bookmark
                 WHERE VolumeID = content.ContentID
-                  AND LOWER(TRIM(CAST(COALESCE(Hidden, 0) AS TEXT))) IN ('0', 'false')
+                  AND {DISPLAYABLE_BOOKMARK_FILTER}
             ) AS bookmark_count
         FROM content AS content
         JOIN kstats_effective_state AS state ON state.content_id = content.ContentID
