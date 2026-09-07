@@ -6,7 +6,7 @@ BOOK_MIME_TYPES = (
     "application/epub+zip",
     "application/pdf",
 )
-DERIVED_SCHEMA_VERSION = 4
+DERIVED_SCHEMA_VERSION = 5
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
@@ -95,11 +95,6 @@ def derived_tables_current(connection: sqlite3.Connection) -> bool:
         rows.get("schema_version") == DERIVED_SCHEMA_VERSION
         and rows.get("content_count") == content_count(connection)
     )
-
-
-def ensure_derived_tables(connection: sqlite3.Connection) -> None:
-    if not derived_tables_current(connection):
-        rebuild_derived_tables(connection)
 
 
 def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
@@ -361,7 +356,8 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         )
         SELECT content_id,
                read_status,
-               MIN(MAX(COALESCE(percent_read, 0), 0), 100) AS percent_read,
+               CASE WHEN read_status = 2 THEN 100
+                    ELSE MIN(MAX(COALESCE(percent_read, 0), 0), 100) END AS percent_read,
                date_last_read,
                finished_at,
                CASE WHEN read_status = 1 THEN MAX(COALESCE(current_estimate, 0), 0) ELSE 0 END

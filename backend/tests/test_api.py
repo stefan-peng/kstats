@@ -127,14 +127,16 @@ def test_dashboard_skips_corrupt_reading_event(client, settings):
     assert duration["skipped_rows"] == 1
 
 
-def test_startup_import_failure_raises(tmp_path):
+def test_startup_import_failure_keeps_server_available(tmp_path):
     source = tmp_path / "source.sqlite"
     source.write_bytes(b"not a sqlite database")
     settings = Settings(source_db=source, data_dir=tmp_path / "data")
 
-    with pytest.raises(KoboImportError, match="Unable to import Kobo database"):
-        with TestClient(create_app(settings)):
-            pass
+    with TestClient(create_app(settings)) as client:
+        status = client.get("/api/device/status").json()
+        assert status["snapshot_available"] is False
+        assert "Unable to import Kobo database" in status["import_error"]
+        assert client.get("/api/dashboard").status_code == 404
 
 
 def test_books_support_search_filters_and_sorting(client):
@@ -176,6 +178,12 @@ def test_books_sort_by_highlight_count(client):
         0,
         1,
     ]
+
+
+def test_progress_sort_matches_displayed_finished_progress(client):
+    response = client.get("/api/books", params={"sort": "progress", "direction": "desc"})
+    assert response.status_code == 200
+    assert [book["percent_read"] for book in response.json()["items"]] == [100, 42, 0]
 
 
 def test_books_filter_by_finished_month(client):
@@ -827,6 +835,9 @@ def test_book_detail_reports_corrupt_dictionary_event(client, settings):
 
 
 def test_device_status_reports_corrupt_import_metadata(client, settings):
+    # Legacy snapshots still read import.json.
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute("DROP TABLE kstats_import")
     settings.import_metadata.write_text("{not json", encoding="utf-8")
 
     response = client.get("/api/device/status")
@@ -901,7 +912,7 @@ def test_concurrent_imports_are_serialized_and_publish_complete_snapshots(
 
 def test_failed_integrity_import_removes_temporary_snapshot(settings, monkeypatch):
     class SourceConnection:
-        def backup(self, destination):
+        def backup(self, destination, **kwargs):
             pass
 
         def close(self):
@@ -949,7 +960,7 @@ def test_status_and_import_rescan_device_candidates_after_startup(tmp_path):
         assert client.get("/api/device/status").json()["connected"] is False
 
         source.parent.mkdir(parents=True)
-        sqlite3.connect(source).close()
+        create_fixture_database(source)
 
         status = client.get("/api/device/status").json()
         assert status["connected"] is True
@@ -1000,7 +1011,7 @@ def test_import_copies_available_cover_assets_best_effort(tmp_path):
     assert not (settings.covers_dir / f"{image_id}-full.jpg").exists()
 
 
-def test_import_prunes_cover_that_is_no_longer_available(tmp_path):
+def test_import_keeps_cached_cover_when_device_copy_is_unavailable(tmp_path):
     source = tmp_path / "KOBOeReader" / ".kobo" / "KoboReader.sqlite"
     source.parent.mkdir(parents=True)
     create_fixture_database(source)
@@ -1027,6 +1038,11 @@ def test_import_prunes_cover_that_is_no_longer_available(tmp_path):
     source_cover.unlink()
     import_database(settings)
 
+    assert cached_cover.is_file()
+
+    with sqlite3.connect(source) as connection:
+        connection.execute("DELETE FROM content WHERE ContentID = 'book-reading'")
+    import_database(settings)
     assert not cached_cover.exists()
 
 

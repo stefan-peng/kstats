@@ -30,9 +30,19 @@ To build and run the production version:
 uv run prod
 ```
 
-Open <http://127.0.0.1:8000>. Connect the Kobo before starting either version
-to import its database. The last successful snapshot remains available after
-the reader is disconnected.
+Open <http://127.0.0.1:8000>. Connect the Kobo and enable its USB connection.
+While the server is running, it checks for the mounted reader every five seconds
+and automatically imports on connection, reconnection, or database changes—even
+without an open browser tab. A reader already connected at startup is imported
+too, even if a previous snapshot exists. Open dashboards pick up new snapshots
+on their next five-second status check (or when the window regains focus).
+
+Failed automatic imports are retried and reported in the dashboard. The last
+successful snapshot remains available after a failed import or disconnection.
+You can also use **Refresh from Kobo** to force an import.
+
+Import timestamps and source paths are stored inside the snapshot so data and
+metadata update atomically. Older snapshots with `import.json` remain supported.
 
 Server settings live in `kstats.toml`:
 

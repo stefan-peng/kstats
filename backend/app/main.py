@@ -2,12 +2,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import anyio
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import Settings
-from .importer import ImportError, device_status, import_database, prepare_snapshot
+from .device_monitor import POLL_INTERVAL_SECONDS, DeviceMonitor
+from .importer import ImportError, prepare_snapshot
 from .kobo_events import EventDecodeError
 from .repository import Repository
 
@@ -15,16 +17,23 @@ from .repository import Repository
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or Settings()
 
+    monitor = DeviceMonitor(app_settings)
+
+    async def watch_device():
+        while True:
+            await anyio.sleep(POLL_INTERVAL_SECONDS)
+            await anyio.to_thread.run_sync(monitor.poll)
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        if (
-            not app_settings.snapshot_db.is_file()
-            and app_settings.resolve_source_db().is_file()
-        ):
-            import_database(app_settings)
-        else:
-            prepare_snapshot(app_settings)
-        yield
+        await anyio.to_thread.run_sync(monitor.poll)
+        await anyio.to_thread.run_sync(prepare_snapshot, app_settings)
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(watch_device)
+            try:
+                yield
+            finally:
+                tasks.cancel_scope.cancel()
 
     app = FastAPI(title="Kobo Stats", lifespan=lifespan)
     app.state.settings = app_settings
@@ -33,16 +42,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Repository(request.app.state.settings)
 
     @app.get("/api/device/status")
-    def get_device_status(request: Request):
+    def get_device_status():
         try:
-            return device_status(request.app.state.settings)
+            return monitor.status()
         except ImportError as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
 
     @app.post("/api/import")
-    def refresh_database(request: Request):
+    def refresh_database():
         try:
-            return import_database(request.app.state.settings)
+            return monitor.import_now()
         except ImportError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -141,6 +150,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         @app.get("/{path:path}", include_in_schema=False)
         def frontend(path: str):
+            if path == "api" or path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="API endpoint not found")
             candidate = (frontend_dist / path).resolve()
             try:
                 candidate.relative_to(frontend_dist)

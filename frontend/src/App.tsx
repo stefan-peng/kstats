@@ -8,14 +8,19 @@ import { AppShell } from "./components/app-shell"
 import { BookDetailDialog } from "./components/book-detail-dialog"
 import { OverviewPage } from "./components/overview-page"
 
-const DEVICE_STATUS_POLL_MS = 10_000
+const DEVICE_STATUS_POLL_MS = 5_000
+
+function snapshotVersion(status: DeviceStatus) {
+  return JSON.stringify([status.snapshot_available, status.imported_at, status.source])
+}
 
 function sameDeviceStatus(left: DeviceStatus | null, right: DeviceStatus) {
   return left !== null &&
     left.connected === right.connected &&
     left.snapshot_available === right.snapshot_available &&
     left.imported_at === right.imported_at &&
-    left.source === right.source
+    left.source === right.source &&
+    left.import_error === right.import_error
 }
 
 function isAbortError(reason: unknown) {
@@ -29,7 +34,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const previousConnectedRef = useRef<boolean | null>(null)
+  const loadedSnapshotRef = useRef<string | null>(null)
   const importInFlightRef = useRef(false)
   const statusCheckInFlightRef = useRef<Promise<void> | null>(null)
   const statusAbortRef = useRef<AbortController | null>(null)
@@ -43,31 +48,40 @@ export default function App() {
     const statusVersion = ++statusVersionRef.current
     const status = await api.deviceStatus(signal)
     if (statusVersionRef.current !== statusVersion || signal?.aborted) return status
-    previousConnectedRef.current = status.connected
     setDevice((current) => (sameDeviceStatus(current, status) ? current : status))
     return status
   }, [])
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const refreshVersion = refreshVersionRef.current
-    const status = await refreshDeviceStatus(signal)
-    if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
-    if (!status.snapshot_available) {
-      setDashboard(null)
-      setError("No Kobo snapshot is available yet.")
-      return
+    const refreshVersion = ++refreshVersionRef.current
+    try {
+      const status = await refreshDeviceStatus(signal)
+      if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
+      if (!status.snapshot_available) {
+        setDashboard(null)
+        loadedSnapshotRef.current = null
+        setError(status.import_error || "No Kobo snapshot is available yet.")
+        return
+      }
+      if (loadedSnapshotRef.current === snapshotVersion(status)) {
+        setError(status.import_error || null)
+        return
+      }
+      const nextDashboard = await api.dashboard(signal)
+      if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
+      setDashboard(nextDashboard)
+      loadedSnapshotRef.current = snapshotVersion(status)
+      setError(status.import_error || null)
+    } catch (reason) {
+      if (refreshVersionRef.current === refreshVersion && !signal?.aborted) throw reason
     }
-    const nextDashboard = await api.dashboard(signal)
-    if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
-    setDashboard(nextDashboard)
-    setError(null)
   }, [refreshDeviceStatus])
 
   useEffect(() => {
     const controller = new AbortController()
     load(controller.signal)
       .catch((reason: Error) => {
-        if (!isAbortError(reason)) setError(reason.message)
+        if (!controller.signal.aborted && !isAbortError(reason)) setError(reason.message)
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -85,67 +99,51 @@ export default function App() {
     setRefreshing(true)
     const controller = new AbortController()
     refreshAbortRef.current = controller
-    let status: DeviceStatus
+    let imported = false
     try {
-      status = await api.refresh(controller.signal)
-    } catch (reason) {
-      if (isAbortError(reason)) {
-        importInFlightRef.current = false
-        if (refreshAbortRef.current === controller) refreshAbortRef.current = null
-        return false
-      }
-      const message = reason instanceof Error ? reason.message : "Refresh failed"
-      await refreshDeviceStatus(controller.signal).catch(() => undefined)
-      setError(message)
-      if (dashboardRef.current) {
-        toast.warning("Kobo import failed; using the previous snapshot")
-      } else {
-        toast.error(message)
-      }
-      importInFlightRef.current = false
-      if (refreshAbortRef.current === controller) refreshAbortRef.current = null
-      setRefreshing(false)
-      return false
-    }
-
-    statusVersionRef.current += 1
-    previousConnectedRef.current = status.connected
-    setDevice(status)
-    try {
-      setDashboard(await api.dashboard(controller.signal))
+      const status = await api.refresh(controller.signal)
+      if (controller.signal.aborted) return
+      imported = true
+      statusVersionRef.current += 1
+      setDevice(status)
+      const nextDashboard = await api.dashboard(controller.signal)
+      if (controller.signal.aborted) return
+      setDashboard(nextDashboard)
+      loadedSnapshotRef.current = snapshotVersion(status)
       setError(null)
       toast.success("Kobo snapshot refreshed")
-      return true
     } catch (reason) {
-      if (isAbortError(reason)) return false
-      const message = reason instanceof Error ? reason.message : "Unable to load reading data"
-      setDashboard(null)
-      setError(`Kobo snapshot imported, but reading data could not be loaded. ${message}`)
-      toast.error("Kobo snapshot imported, but reading data could not be loaded")
-      return null
+      if (controller.signal.aborted || isAbortError(reason)) return
+      const message = reason instanceof Error ? reason.message : "Refresh failed"
+      if (imported) {
+        setDashboard(null)
+        loadedSnapshotRef.current = null
+        setError(`Kobo snapshot imported, but reading data could not be loaded. ${message}`)
+        toast.error("Kobo snapshot imported, but reading data could not be loaded")
+      } else {
+        await refreshDeviceStatus(controller.signal).catch(() => undefined)
+        if (controller.signal.aborted) return
+        setError(message)
+        if (dashboardRef.current) {
+          toast.warning("Kobo import failed; using the previous snapshot")
+        } else {
+          toast.error(message)
+        }
+      }
     } finally {
       importInFlightRef.current = false
-      if (refreshAbortRef.current === controller) {
-        refreshAbortRef.current = null
-      }
+      if (refreshAbortRef.current === controller) refreshAbortRef.current = null
       if (!controller.signal.aborted) setRefreshing(false)
     }
   }, [refreshDeviceStatus])
 
   const checkDeviceStatus = useCallback(() => {
+    if (importInFlightRef.current) return Promise.resolve()
     if (statusCheckInFlightRef.current) return statusCheckInFlightRef.current
 
-    const check = (async () => {
-      const controller = new AbortController()
-      statusAbortRef.current = controller
-      const wasDisconnected = previousConnectedRef.current === false
-      const status = await refreshDeviceStatus(controller.signal)
-
-      if (!controller.signal.aborted && wasDisconnected && status.connected) {
-        const refreshed = await refresh()
-        if (refreshed === false) previousConnectedRef.current = false
-      }
-    })()
+    const controller = new AbortController()
+    statusAbortRef.current = controller
+    const check = load(controller.signal)
     const trackedCheck = check.finally(() => {
       if (statusCheckInFlightRef.current === trackedCheck) {
         statusCheckInFlightRef.current = null
@@ -154,7 +152,7 @@ export default function App() {
     })
     statusCheckInFlightRef.current = trackedCheck
     return trackedCheck
-  }, [refresh, refreshDeviceStatus])
+  }, [load])
 
   useEffect(() => {
     const check = () => {
@@ -184,6 +182,7 @@ export default function App() {
         />
       </AppShell>
       <BookDetailDialog
+        key={device?.imported_at}
         contentId={selectedBook}
         onOpenChange={(open) => !open && setSelectedBook(null)}
       />

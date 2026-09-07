@@ -1,5 +1,6 @@
 import errno
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -19,6 +20,8 @@ class ImportError(RuntimeError):
     pass
 
 
+logger = logging.getLogger(__name__)
+
 JPEG_MAGIC = b"\xff\xd8\xff"
 COVER_VARIANTS = {
     "grid": "N3_LIBRARY_GRID.parsed",
@@ -26,6 +29,18 @@ COVER_VARIANTS = {
 }
 
 _PROCESS_IMPORT_LOCK = threading.Lock()
+BACKUP_TIMEOUT_SECONDS = 60
+
+
+def _backup(source: sqlite3.Connection, destination: sqlite3.Connection) -> None:
+    deadline = time.monotonic() + BACKUP_TIMEOUT_SECONDS
+
+    def progress(_status: int, _remaining: int, _total: int) -> None:
+        # sqlite3's connection timeout does not bound backup's SQLITE_BUSY retries.
+        if time.monotonic() >= deadline:
+            raise ImportError("Timed out copying Kobo database; it may still be in use")
+
+    source.backup(destination, pages=256, progress=progress)
 
 
 @contextmanager
@@ -79,13 +94,17 @@ def _temporary_database(settings: Settings):
         temporary.unlink(missing_ok=True)
 
 
-def _write_metadata(path: Path, imported_at: str, source: Path) -> None:
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(
-        json.dumps({"imported_at": imported_at, "source": str(source)}, indent=2),
-        encoding="utf-8",
+def _write_metadata(connection: sqlite3.Connection, source: Path) -> None:
+    # Publish the version and the data in the same atomic database replacement.
+    connection.execute("DROP TABLE IF EXISTS kstats_import")
+    connection.execute(
+        "CREATE TABLE kstats_import (imported_at TEXT NOT NULL, source TEXT NOT NULL)"
     )
-    os.replace(temporary, path)
+    connection.execute(
+        "INSERT INTO kstats_import VALUES (?, ?)",
+        (datetime.now(UTC).isoformat(), str(source)),
+    )
+    connection.commit()
 
 
 def _is_jpeg(path: Path) -> bool:
@@ -97,7 +116,7 @@ def _is_jpeg(path: Path) -> bool:
 
 
 def _cover_source_root(source: Path) -> Path:
-    return source.parents[1] / ".kobo-images"
+    return source.resolve().parents[1] / ".kobo-images"
 
 
 def _cover_destination(settings: Settings, image_id: str, variant: str) -> Path:
@@ -138,12 +157,9 @@ def _copy_cover_variant(
     os.replace(temporary, destination)
 
 
-def _copy_covers(settings: Settings, source: Path) -> None:
+def _copy_covers(settings: Settings, source: Path, database: Path) -> set[str]:
     source_root = _cover_source_root(source)
-    if not settings.snapshot_db.is_file():
-        return
-
-    with closing(sqlite3.connect(settings.snapshot_db)) as connection:
+    with closing(sqlite3.connect(database)) as connection:
         rows = connection.execute(
             """
             SELECT DISTINCT image_id
@@ -166,9 +182,14 @@ def _copy_covers(settings: Settings, source: Path) -> None:
     covers = _cover_index(source_root, expected_names) if source_root.is_dir() else {}
     staging_dir = Path(tempfile.mkdtemp(prefix=".covers-", dir=settings.data_dir))
     staging_settings = Settings(data_dir=staging_dir)
-    staging_settings.covers_dir.mkdir(parents=True)
     copied_names: set[str] = set()
+    retained_names = {
+        _cover_destination(settings, image_id, variant).name
+        for image_id in valid_image_ids
+        for variant in COVER_VARIANTS
+    }
     try:
+        staging_settings.covers_dir.mkdir(parents=True)
         for image_id in valid_image_ids:
             for variant in COVER_VARIANTS:
                 try:
@@ -189,17 +210,20 @@ def _copy_covers(settings: Settings, source: Path) -> None:
             for name in copied_names:
                 os.replace(staging_settings.covers_dir / name, settings.covers_dir / name)
 
-        if settings.covers_dir.is_dir():
-            for existing in settings.covers_dir.iterdir():
-                if (
-                    existing.is_file()
-                    and existing.name.endswith(("-grid.jpg", "-full.jpg"))
-                    and existing.name not in copied_names
-                ):
-                    existing.unlink(missing_ok=True)
     finally:
         shutil.rmtree(staging_dir, ignore_errors=True)
+    return retained_names
 
+
+def _prune_covers(settings: Settings, retained_names: set[str]) -> None:
+    if settings.covers_dir.is_dir():
+        for existing in settings.covers_dir.iterdir():
+            if (
+                existing.is_file()
+                and existing.name.endswith(("-grid.jpg", "-full.jpg"))
+                and existing.name not in retained_names
+            ):
+                existing.unlink(missing_ok=True)
 
 
 def import_database(settings: Settings) -> dict[str, str | bool | None]:
@@ -219,22 +243,40 @@ def _import_database_locked(settings: Settings) -> dict[str, str | bool | None]:
                 closing(sqlite3.connect(source_uri, uri=True)) as source_connection,
                 closing(sqlite3.connect(temporary)) as destination_connection,
             ):
-                source_connection.backup(destination_connection)
+                _backup(source_connection, destination_connection)
                 integrity = destination_connection.execute(
                     "PRAGMA integrity_check"
                 ).fetchone()
                 if not integrity or integrity[0] != "ok":
                     raise ImportError("Imported database failed its integrity check")
+                # A copied WAL-mode database must become a self-contained file
+                # before publication; sidecars cannot follow an atomic replace.
+                destination_connection.execute("PRAGMA journal_mode=DELETE")
+                if not destination_connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'content'"
+                ).fetchone():
+                    raise ImportError("Kobo database is not ready: missing content table")
                 rebuild_derived_tables(destination_connection)
+                _write_metadata(destination_connection, source)
+            retained_names = None
+            try:
+                retained_names = _copy_covers(settings, source, temporary)
+            except OSError:
+                logger.warning(
+                    "Cover caching failed; importing without new covers", exc_info=True
+                )
             os.replace(temporary, settings.snapshot_db)
         except ImportError:
             raise
         except (OSError, sqlite3.Error) as error:
             raise ImportError(f"Unable to import Kobo database: {error}") from error
 
-    imported_at = datetime.now(UTC).isoformat()
-    _copy_covers(settings, source)
-    _write_metadata(settings.import_metadata, imported_at, source)
+    # Never remove assets from the previous snapshot until publication succeeds.
+    if retained_names is not None:
+        try:
+            _prune_covers(settings, retained_names)
+        except OSError:
+            logger.warning("Snapshot imported, but stale cover cleanup failed", exc_info=True)
     return device_status(settings)
 
 
@@ -250,7 +292,8 @@ def prepare_snapshot(settings: Settings) -> None:
                     if derived_tables_current(source_connection):
                         return
                     with closing(sqlite3.connect(temporary)) as destination_connection:
-                        source_connection.backup(destination_connection)
+                        _backup(source_connection, destination_connection)
+                        destination_connection.execute("PRAGMA journal_mode=DELETE")
                         rebuild_derived_tables(destination_connection)
                 os.replace(temporary, settings.snapshot_db)
         except (OSError, sqlite3.Error) as error:
@@ -258,6 +301,22 @@ def prepare_snapshot(settings: Settings) -> None:
 
 
 def _metadata(settings: Settings) -> dict[str, str | None]:
+    if settings.snapshot_db.is_file():
+        uri = f"{settings.snapshot_db.resolve().as_uri()}?mode=ro"
+        try:
+            with closing(sqlite3.connect(uri, uri=True)) as connection:
+                if connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kstats_import'"
+                ).fetchone():
+                    row = connection.execute(
+                        "SELECT imported_at, source FROM kstats_import"
+                    ).fetchone()
+                    if row:
+                        return {"imported_at": row[0], "source": row[1]}
+        except sqlite3.Error as error:
+            raise ImportError(f"Unable to read snapshot metadata: {error}") from error
+
+    # Snapshots from older releases kept metadata in a separate JSON file.
     if not settings.import_metadata.is_file():
         return {"imported_at": None, "source": None}
     try:
