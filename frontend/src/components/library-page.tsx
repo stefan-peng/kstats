@@ -317,7 +317,11 @@ export function LibrarySection({
         </h2>
       </header>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1.7fr)_repeat(7,minmax(8rem,1fr))]">
+      <div
+        role="group"
+        aria-label="Library filters"
+        className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1.7fr)_repeat(7,minmax(0,1fr))]"
+      >
         <div className="relative sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -333,7 +337,7 @@ export function LibrarySection({
           setStatus(value)
           setPage(1)
         }}>
-          <SelectTrigger aria-label="Reading status" className="h-9 w-full">
+          <SelectTrigger aria-label="Reading status" className="h-9 min-w-0 w-full">
             <SelectValue placeholder="Reading status" />
           </SelectTrigger>
           <SelectContent>
@@ -349,7 +353,7 @@ export function LibrarySection({
           setAvailability(value)
           setPage(1)
         }}>
-          <SelectTrigger aria-label="Availability" className="h-9 w-full">
+          <SelectTrigger aria-label="Availability" className="h-9 min-w-0 w-full">
             <SelectValue placeholder="Availability" />
           </SelectTrigger>
           <SelectContent>
@@ -364,7 +368,7 @@ export function LibrarySection({
           setSource(value)
           setPage(1)
         }}>
-          <SelectTrigger aria-label="Source" className="h-9 w-full">
+          <SelectTrigger aria-label="Source" className="h-9 min-w-0 w-full">
             <SelectValue placeholder="Source" />
           </SelectTrigger>
           <SelectContent>
@@ -379,7 +383,7 @@ export function LibrarySection({
           setHighlightFilter(value)
           setPage(1)
         }}>
-          <SelectTrigger aria-label="Highlights" className="h-9 w-full">
+          <SelectTrigger aria-label="Highlights" className="h-9 min-w-0 w-full">
             <SelectValue placeholder="Highlights" />
           </SelectTrigger>
           <SelectContent>
@@ -591,7 +595,7 @@ function FilterSelect({
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger aria-label={label} className="h-9 w-full">
+      <SelectTrigger aria-label={label} className="h-9 min-w-0 w-full">
         <SelectValue placeholder={allLabel} />
       </SelectTrigger>
       <SelectContent>

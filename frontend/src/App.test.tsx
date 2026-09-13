@@ -761,6 +761,12 @@ test("supports library search and sortable headers on the dashboard", async () =
   expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
   expect(screen.getByRole("combobox", { name: "Reading status" })).toBeVisible()
   expect(screen.getByRole("combobox", { name: "Availability" })).toBeVisible()
+  expect(screen.getByRole("group", { name: "Library filters" })).toHaveClass(
+    "xl:grid-cols-[minmax(18rem,1.7fr)_repeat(7,minmax(0,1fr))]",
+  )
+  expect(screen.getByRole("combobox", { name: "Reading status" })).toHaveClass(
+    "min-w-0",
+  )
 })
 
 test("shows active filters and requests Kobo-backed highlight filters", async () => {
