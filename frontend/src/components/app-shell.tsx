@@ -3,6 +3,7 @@ import { BookOpen, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { DeviceStatus } from "@/types"
 
@@ -19,13 +20,19 @@ function Brand() {
 
 export function AppShell({
   device,
+  connectionError,
+  lastChecked,
   children,
 }: {
+  connectionError: boolean
+  lastChecked: string | null
   device: DeviceStatus | null
   children: ReactNode
 }) {
   const { resolvedTheme, setTheme } = useTheme()
-  const deviceLabel = !device
+  const deviceLabel = connectionError
+    ? "Unable to check connection"
+    : !device
     ? "Checking Kobo"
     : device.connected
       ? "Kobo connected"
@@ -40,7 +47,7 @@ export function AppShell({
               <span
                 className={cn(
                   "size-2 rounded-full",
-                  device?.connected ? "bg-primary" : "bg-muted-foreground",
+                  device?.connected && !connectionError ? "bg-primary" : "bg-muted-foreground",
                 )}
               />
               <span className="font-medium">
@@ -65,6 +72,13 @@ export function AppShell({
           </div>
         </div>
       </header>
+      {connectionError && (
+        <p role="status" className="mx-auto max-w-7xl px-5 pt-4 text-sm text-muted-foreground md:px-8 lg:px-10">
+          Unable to check connection. Retrying automatically.
+          {lastChecked ? ` Last checked successfully ${formatDateTime(lastChecked)}.` : " No successful connection check yet."}
+          {device?.snapshot_available ? " Your saved snapshot is still available." : ""}
+        </p>
+      )}
       {children}
     </div>
   )

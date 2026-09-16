@@ -1264,3 +1264,30 @@ test("does not claim fallback when the import succeeds but reloading fails", asy
   ).toBeVisible()
   expect(screen.queryByText("Using the previous snapshot")).not.toBeInTheDocument()
 })
+
+test("reports failed background connection checks and recovers without losing the snapshot", async () => {
+  render(<App />)
+  await screen.findByRole("heading", { name: "Reading overview" })
+  const originalFetch = globalThis.fetch
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/device/status")) throw new Error("Network unavailable")
+    return originalFetch(input, init)
+  }))
+  act(() => window.dispatchEvent(new Event("focus")))
+  expect(await screen.findByRole("status")).toHaveTextContent("Last checked successfully")
+  expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+  vi.stubGlobal("fetch", originalFetch)
+  act(() => window.dispatchEvent(new Event("focus")))
+  await waitFor(() => expect(screen.queryByText(/Retrying automatically/)).not.toBeInTheDocument())
+})
+
+test("names a failed book dialog and retries the request", async () => {
+  const originalFetch = globalThis.fetch
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Temporary failure")))
+  render(<BookDetailDialog contentId="book-1" onOpenChange={() => undefined} />)
+  expect(screen.getByRole("dialog", { name: "Loading book" })).toBeVisible()
+  expect(await screen.findByRole("dialog", { name: "Unable to load book" })).toBeVisible()
+  vi.stubGlobal("fetch", originalFetch)
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }))
+  expect(await screen.findByRole("dialog", { name: "Current Book" })).toBeVisible()
+})

@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -70,6 +71,7 @@ export function BookDetailDialog({
   contentId: string | null
   onOpenChange: (open: boolean) => void
 }) {
+  const [retry, setRetry] = useState(0)
   const [bookResult, setBookResult] = useState<{
     contentId: string
     book: BookDetail
@@ -109,15 +111,24 @@ export function BookDetailDialog({
     return () => {
       controller.abort()
     }
-  }, [contentId])
+  }, [contentId, retry])
 
   return (
     <Dialog open={Boolean(contentId)} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl">
+        {!book && (
+          <DialogHeader>
+            <DialogTitle>{error ? "Unable to load book" : "Loading book"}</DialogTitle>
+            <DialogDescription>Book details, reading history, and notes.</DialogDescription>
+          </DialogHeader>
+        )}
         {error ? (
           <Alert variant="destructive">
             <AlertTitle>Unable to load book</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error}
+              <Button variant="outline" size="sm" onClick={() => setRetry((value) => value + 1)}>Retry</Button>
+            </AlertDescription>
           </Alert>
         ) : !book ? (
           <div className="flex flex-col gap-4">

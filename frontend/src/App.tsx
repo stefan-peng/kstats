@@ -28,6 +28,8 @@ function isAbortError(reason: unknown) {
 }
 
 export default function App() {
+  const [connectionError, setConnectionError] = useState(false)
+  const lastCheckedRef = useRef<string | null>(null)
   const [device, setDevice] = useState<DeviceStatus | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [selectedBook, setSelectedBook] = useState<string | null>(null)
@@ -46,10 +48,19 @@ export default function App() {
 
   const refreshDeviceStatus = useCallback(async (signal?: AbortSignal) => {
     const statusVersion = ++statusVersionRef.current
-    const status = await api.deviceStatus(signal)
-    if (statusVersionRef.current !== statusVersion || signal?.aborted) return status
-    setDevice((current) => (sameDeviceStatus(current, status) ? current : status))
-    return status
+    try {
+      const status = await api.deviceStatus(signal)
+      if (statusVersionRef.current !== statusVersion || signal?.aborted) return status
+      lastCheckedRef.current = new Date().toISOString()
+      setConnectionError(false)
+      setDevice((current) => (sameDeviceStatus(current, status) ? current : status))
+      return status
+    } catch (reason) {
+      if (statusVersionRef.current === statusVersion && !signal?.aborted && !isAbortError(reason)) {
+        setConnectionError(true)
+      }
+      throw reason
+    }
   }, [])
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -105,6 +116,8 @@ export default function App() {
       if (controller.signal.aborted) return
       imported = true
       statusVersionRef.current += 1
+      lastCheckedRef.current = new Date().toISOString()
+      setConnectionError(false)
       setDevice(status)
       const nextDashboard = await api.dashboard(controller.signal)
       if (controller.signal.aborted) return
@@ -170,7 +183,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <AppShell device={device}>
+      <AppShell device={device} connectionError={connectionError} lastChecked={lastCheckedRef.current}>
         <OverviewPage
           dashboard={dashboard}
           device={device}

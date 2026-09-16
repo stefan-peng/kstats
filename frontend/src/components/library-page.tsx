@@ -466,7 +466,7 @@ export function LibrarySection({
                             header.column.id,
                           )
                             ? "hidden md:table-cell"
-                            : header.column.id === "last_read"
+                            : ["last_read", "highlights"].includes(header.column.id)
                               ? "hidden sm:table-cell"
                               : undefined
                         }
