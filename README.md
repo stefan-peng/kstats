@@ -96,6 +96,8 @@ Library search, filters, sorting, pagination, and open books are encoded in the
 URL. Bookmark a view to return to it, or use browser Back and Forward to revisit
 filter selections and books. Search typing updates the current history entry.
 Use **Jump to library**, **More filters**, and **Clear all** to navigate the dashboard.
+Book details offer **Copy highlights** and **Download text** for highlights and
+notes, including the book title, author, and recorded timestamps.
 
 ## Maintenance
 

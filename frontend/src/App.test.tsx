@@ -1335,3 +1335,17 @@ test("jump and completion selection focus the library heading", async () => {
   expect(screen.getByRole("heading", { name: "Library" })).toHaveFocus()
   expect(new URLSearchParams(window.location.search).get("month")).toBe("2026-05")
 })
+
+test("copies highlights and notes and explains clipboard failure", async () => {
+  const user = userEvent.setup()
+  const clipboard = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
+  render(<App />)
+  await user.click(await screen.findByRole("button", { name: "Open Current Book" }))
+  await user.click(await screen.findByRole("button", { name: "Copy highlights" }))
+  expect(clipboard).toHaveBeenCalledWith(expect.stringContaining("Highlighted text\n\nNote: A note"))
+  expect(clipboard).toHaveBeenCalledWith(expect.stringContaining("Current Book\n\nAda Reader"))
+  clipboard.mockRejectedValueOnce(new Error("Permission denied"))
+  await user.click(screen.getByRole("button", { name: "Copy highlights" }))
+  expect(await screen.findByText("Unable to copy. Use Download text to save your highlights.")).toBeVisible()
+  clipboard.mockRestore()
+})

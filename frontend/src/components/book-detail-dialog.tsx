@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   CalendarDays,
+  Copy,
+  Download,
   Clock3,
   Highlighter,
   Languages,
   Timer,
 } from "lucide-react"
+import { toast } from "sonner"
+import { downloadHighlights, formatHighlights } from "@/lib/highlights"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -405,6 +409,31 @@ export function BookDetailDialog({
                     Highlights and notes ({book.bookmarks.length})
                   </h3>
                 </div>
+                {book.bookmarks.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(formatHighlights(book))
+                        toast.success("Highlights and notes copied")
+                      } catch {
+                        toast.error("Unable to copy. Use Download text to save your highlights.")
+                      }
+                    }}>
+                      <Copy data-icon="inline-start" />
+                      Copy highlights
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      try {
+                        downloadHighlights(book)
+                      } catch {
+                        toast.error("Unable to download highlights. You can still select and copy the text below.")
+                      }
+                    }}>
+                      <Download data-icon="inline-start" />
+                      Download text
+                    </Button>
+                  </div>
+                )}
                 {book.bookmarks.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     No highlights or notes are stored for this book.
