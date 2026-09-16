@@ -76,11 +76,13 @@ test("builds a trailing calendar heatmap with intensity levels", () => {
     date: "2026-06-15",
     seconds: 600,
     level: 2,
+    recorded: true,
   })
   expect(result?.cells.find(({ date }) => date === "2026-06-17")).toEqual({
     date: "2026-06-17",
     seconds: 1800,
     level: 4,
+    recorded: true,
   })
 })
 
@@ -100,5 +102,16 @@ test("pads the trailing heatmap range across a leap day", () => {
     date: "2024-02-29",
     seconds: 0,
     level: 0,
+    recorded: false,
   })
+})
+
+
+test("distinguishes missing telemetry from an explicitly recorded zero", () => {
+  const result = buildDurationHeatmap([
+    { date: "2026-06-15", seconds: 0 },
+    { date: "2026-06-17", seconds: 60 },
+  ])!
+  expect(result.cells.find((cell) => cell.date === "2026-06-15")).toMatchObject({ seconds: 0, recorded: true })
+  expect(result.cells.find((cell) => cell.date === "2026-06-16")).toMatchObject({ seconds: 0, recorded: false })
 })

@@ -32,7 +32,7 @@ export function formatDateTime(value: string | null): string {
 
 export function formatMonth(value: string): string {
   const [year, month] = value.split("-").map(Number)
-  return new Intl.DateTimeFormat(undefined, { month: "short" }).format(
+  return new Intl.DateTimeFormat(undefined, { month: "short", year: "2-digit" }).format(
     new Date(year, month - 1, 1),
   )
 }

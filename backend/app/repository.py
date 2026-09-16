@@ -137,7 +137,9 @@ class Repository:
                 FROM kstats_books
                 WHERE read_status = 2
                     AND finished_at IS NOT NULL
-                    AND length(finished_at) >= 7
+                    AND substr(finished_at, 1, 7) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'
+                    AND substr(finished_at, 6, 2) BETWEEN '01' AND '12'
+                    AND substr(finished_at, 1, 4) >= '0001'
                 GROUP BY month
                 ORDER BY month DESC
                 LIMIT 12
@@ -204,6 +206,17 @@ class Repository:
         for row in status_rows:
             status_counts[status_name(row["status"])] = row["count"]
 
+        # Use a continuous calendar window, rather than twelve non-empty months.
+        monthly_completions = []
+        if monthly_rows:
+            latest_year, latest_month = map(int, monthly_rows[0]["month"].split("-"))
+            end_month = latest_year * 12 + latest_month - 1
+            counts = {row["month"]: row["count"] for row in monthly_rows}
+            for month_index in range(max(12, end_month - 11), end_month + 1):
+                year, month = divmod(month_index, 12)
+                key = f"{year:04d}-{month + 1:02d}"
+                monthly_completions.append({"month": key, "count": counts.get(key, 0)})
+
         return {
             "totals": {
                 "library": totals["library"] or 0,
@@ -213,9 +226,7 @@ class Repository:
             },
             "source_summary": source_summary,
             "status_counts": status_counts,
-            "monthly_completions": [
-                dict(row) for row in reversed(monthly_rows) if row["month"]
-            ],
+            "monthly_completions": monthly_completions,
             "reading_duration": reading_duration,
             "continue_reading": [
                 serialize_book(row, self.covers_dir) for row in continue_rows

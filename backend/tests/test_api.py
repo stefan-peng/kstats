@@ -56,7 +56,11 @@ def test_startup_import_and_dashboard_exclude_pocket(client):
         "finished": 1,
     }
     assert payload["continue_reading"][0]["title"] == "Current Book"
-    assert payload["monthly_completions"] == [{"month": "2026-05", "count": 1}]
+    completions = payload["monthly_completions"]
+    assert len(completions) == 12
+    assert completions[0] == {"month": "2025-06", "count": 0}
+    assert completions[-1] == {"month": "2026-05", "count": 1}
+    assert sum(month["count"] for month in completions) == 1
     assert payload["reading_duration"] == {
         "estimated": True,
         "coverage_start": "2026-06-16",
@@ -1056,3 +1060,23 @@ def test_import_succeeds_without_cover_directory(tmp_path):
 
     assert status["snapshot_available"] is True
     assert not settings.covers_dir.exists()
+
+
+def test_completion_calendar_fills_gaps_across_years_and_ignores_bad_dates(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executemany(
+            "UPDATE kstats_books SET read_status = 2, finished_at = ? WHERE content_id = ?",
+            [
+                ("2026-01-10", "book-finished"),
+                ("2025-11-10", "book-reading"),
+                ("not-a-date", "book-cloud"),
+            ],
+        )
+    months = client.get("/api/dashboard").json()["monthly_completions"]
+    assert len(months) == 12
+    assert months[0] == {"month": "2025-02", "count": 0}
+    assert months[-3:] == [
+        {"month": "2025-11", "count": 1},
+        {"month": "2025-12", "count": 0},
+        {"month": "2026-01", "count": 1},
+    ]

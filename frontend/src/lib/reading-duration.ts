@@ -6,6 +6,7 @@ export interface DurationPoint {
 }
 
 export interface DurationHeatmapCell {
+  recorded: boolean
   date: string
   seconds: number
   level: 0 | 1 | 2 | 3 | 4
@@ -121,6 +122,7 @@ export function buildDurationHeatmap(
     const key = dateKey(date)
     const entry = dayMap.get(key)
     cells.push({
+      recorded: entry !== undefined,
       date: key,
       seconds: entry?.seconds ?? 0,
       level: entry?.level ?? 0,

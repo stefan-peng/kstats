@@ -290,6 +290,12 @@ export function OverviewPage({
         <Card>
           <CardHeader>
             <CardTitle>Monthly completions</CardTitle>
+            {dashboard.monthly_completions.length > 0 && (
+              <CardDescription>
+                12 calendar months through {formatMonthYear(dashboard.monthly_completions.at(-1)!.month)}.
+                Based on recorded completion dates.
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent>
             {dashboard.monthly_completions.length === 0 ? (
@@ -320,7 +326,7 @@ export function OverviewPage({
                       tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                     />
                     <RechartsTooltip
-                      labelFormatter={(value) => formatMonth(String(value))}
+                      labelFormatter={(value) => formatMonthYear(String(value))}
                       contentStyle={{
                         background: "var(--popover)",
                         borderColor: "var(--border)",
@@ -476,6 +482,16 @@ export function OverviewPage({
               </ResponsiveContainer>
             </div>
           )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Book totals report {formatDuration(dashboard.totals.reading_seconds)} across the library.
+            Detailed session records contain {formatDuration(dashboard.reading_duration.source_seconds)};
+            their coverage can be shorter, and dates are estimated. Empty periods do not prove that you did not read.
+          </p>
+          {dashboard.reading_duration.skipped_rows > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {formatNumber(dashboard.reading_duration.skipped_rows)} session records could not be used.
+            </p>
+          )}
           {dashboard.reading_duration.unallocated_seconds > 0 ? (
             <p className="mt-2 text-xs text-muted-foreground">
               {formatDuration(dashboard.reading_duration.unallocated_seconds)} could
@@ -625,7 +641,7 @@ function DurationHeatmapView({ heatmap }: { heatmap: DurationHeatmap }) {
                 const date = dateFormatter.format(new Date(`${cell.date}T00:00:00`))
                 const label = cell.seconds
                   ? `${date}: ${formatDuration(cell.seconds)} read, intensity ${cell.level} of 4`
-                  : `${date}: no reading`
+                  : `${date}: ${cell.recorded ? "no reading recorded" : "no recorded data"}`
                 return (
                   <Tooltip key={cell.date}>
                     <TooltipTrigger asChild>
@@ -645,14 +661,14 @@ function DurationHeatmapView({ heatmap }: { heatmap: DurationHeatmap }) {
                           role="gridcell"
                           aria-label={label}
                           tabIndex={-1}
-                          className="duration-heatmap-cell level-0"
+                          className={cn("duration-heatmap-cell level-0", !cell.recorded && "border-dashed opacity-40")}
                         />
                       )}
                     </TooltipTrigger>
                     <TooltipContent>
                       <div className="grid gap-1">
                         <span>{date}</span>
-                        <strong>{cell.seconds ? `${formatDuration(cell.seconds)} read` : "No reading"}</strong>
+                        <strong>{cell.seconds ? `${formatDuration(cell.seconds)} read` : cell.recorded ? "No reading recorded" : "No recorded data"}</strong>
                       </div>
                     </TooltipContent>
                   </Tooltip>
@@ -672,7 +688,7 @@ function DurationHeatmapView({ heatmap }: { heatmap: DurationHeatmap }) {
           </div>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">{dateRange}</p>
+      <p className="text-xs text-muted-foreground">{dateRange}. Faded cells have no recorded data.</p>
     </div>
   )
 }
