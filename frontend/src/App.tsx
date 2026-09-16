@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { updateBrowseState, useBrowseValue } from "@/lib/browse-state"
 import { api } from "@/lib/api"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { AppShell } from "./components/app-shell"
@@ -32,7 +33,8 @@ export default function App() {
   const lastCheckedRef = useRef<string | null>(null)
   const [device, setDevice] = useState<DeviceStatus | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
-  const [selectedBook, setSelectedBook] = useState<string | null>(null)
+  const selectedBook = useBrowseValue("book")
+  const setSelectedBook = useCallback((book: string | null) => updateBrowseState({ book: book ?? "" }), [])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -196,7 +198,7 @@ export default function App() {
       </AppShell>
       <BookDetailDialog
         key={device?.imported_at}
-        contentId={selectedBook}
+        contentId={selectedBook || null}
         onOpenChange={(open) => !open && setSelectedBook(null)}
       />
       <Toaster richColors />

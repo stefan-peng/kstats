@@ -187,6 +187,7 @@ function mockFetch() {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/")
   window.localStorage.clear()
   mockFetch()
 })
@@ -760,10 +761,9 @@ test("supports library search and sortable headers on the dashboard", async () =
   expect(row).toHaveAttribute("data-interactive", "true")
   expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
   expect(screen.getByRole("combobox", { name: "Reading status" })).toBeVisible()
+  expect(screen.queryByRole("combobox", { name: "Availability" })).not.toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "More filters" }))
   expect(screen.getByRole("combobox", { name: "Availability" })).toBeVisible()
-  expect(screen.getByRole("group", { name: "Library filters" })).toHaveClass(
-    "xl:grid-cols-[minmax(18rem,1.7fr)_repeat(7,minmax(0,1fr))]",
-  )
   expect(screen.getByRole("combobox", { name: "Reading status" })).toHaveClass(
     "min-w-0",
   )
@@ -773,6 +773,7 @@ test("shows active filters and requests Kobo-backed highlight filters", async ()
   const user = userEvent.setup()
   render(<App />)
 
+  await user.click(await screen.findByRole("button", { name: "More filters" }))
   const highlights = await screen.findByRole("combobox", { name: "Highlights" })
   await user.click(highlights)
   await user.click(screen.getByRole("option", { name: "With highlights" }))
@@ -1290,4 +1291,47 @@ test("names a failed book dialog and retries the request", async () => {
   vi.stubGlobal("fetch", originalFetch)
   await userEvent.click(screen.getByRole("button", { name: "Retry" }))
   expect(await screen.findByRole("dialog", { name: "Current Book" })).toBeVisible()
+})
+
+test("restores bookmarked library state without resetting the page", async () => {
+  window.history.replaceState(null, "", "/?search=Ada&status=reading&page=2&sort=title&direction=asc&publisher=Press")
+  const view = render(<App />)
+  expect(await screen.findByRole("textbox", { name: "Search library" })).toHaveValue("Ada")
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+    expect.stringMatching(/\/api\/books\?.*page=2.*status=reading.*sort=title.*direction=asc.*search=Ada.*publisher=Press/),
+    { signal: expect.any(AbortSignal) },
+  ))
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  expect(new URLSearchParams(window.location.search).get("page")).toBe("2")
+  view.unmount()
+  render(<App />)
+  expect(await screen.findByRole("textbox", { name: "Search library" })).toHaveValue("Ada")
+  await userEvent.click(screen.getByRole("button", { name: "Clear all" }))
+  expect(screen.getByRole("textbox", { name: "Search library" })).toHaveValue("")
+  expect(window.location.search).toBe("?sort=title&direction=asc")
+})
+
+test("Back and Forward restore the selected book and library filters", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole("combobox", { name: "Reading status" }))
+  await user.click(screen.getByRole("option", { name: "In progress" }))
+  await user.click(screen.getByRole("button", { name: "Open Current Book" }))
+  expect(await screen.findByRole("dialog", { name: "Current Book" })).toBeVisible()
+  expect(new URLSearchParams(window.location.search).get("book")).toBe("book-1")
+  act(() => window.history.back())
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  expect(screen.getByRole("combobox", { name: "Reading status" })).toHaveTextContent("In progress")
+  act(() => window.history.forward())
+  expect(await screen.findByRole("dialog", { name: "Current Book" })).toBeVisible()
+})
+
+test("jump and completion selection focus the library heading", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole("button", { name: "Jump to library" }))
+  expect(screen.getByRole("heading", { name: "Library" })).toHaveFocus()
+  await user.click(screen.getByRole("button", { name: "May 2026, 1 book completed" }))
+  expect(screen.getByRole("heading", { name: "Library" })).toHaveFocus()
+  expect(new URLSearchParams(window.location.search).get("month")).toBe("2026-05")
 })

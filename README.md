@@ -92,6 +92,11 @@ uv run pytest --basetemp $baseTemp -p no:cacheprovider
 The source Kobo database is opened read-only and is never modified. Pocket
 articles and unsupported content types are excluded from book statistics.
 
+Library search, filters, sorting, pagination, and open books are encoded in the
+URL. Bookmark a view to return to it, or use browser Back and Forward to revisit
+filter selections and books. Search typing updates the current history entry.
+Use **Jump to library**, **More filters**, and **Clear all** to navigate the dashboard.
+
 ## Maintenance
 
 Kobo `Event.ExtraData` values use a Qt binary serialization format that may

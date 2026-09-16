@@ -58,6 +58,7 @@ import {
   type DurationHeatmap,
   type DurationGranularity,
 } from "@/lib/reading-duration"
+import { focusLibrary, updateBrowseState, useBrowseValue } from "@/lib/browse-state"
 import { cn } from "@/lib/utils"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { LibrarySection } from "./library-page"
@@ -95,7 +96,12 @@ export function OverviewPage({
   onRefresh: () => void
   onOpenBook: (contentId: string) => void
 }) {
-  const [finishedMonth, setFinishedMonth] = useState<string | null>(null)
+  const month = useBrowseValue("month")
+  const finishedMonth = month || null
+  const setFinishedMonth = (month: string | null) => {
+    updateBrowseState({ month: month ?? "", status: "all", page: 1 })
+    if (month) focusLibrary()
+  }
   const [durationOption, setDurationOption] = useState<DurationOption>(readDurationOption)
   const durationGranularity: DurationGranularity =
     durationOption === "heatmap" ? "week" : durationOption
@@ -194,6 +200,7 @@ export function OverviewPage({
           <h1 className="font-serif text-4xl font-semibold tracking-tight">
             Reading overview
           </h1>
+          <Button variant="link" className="px-0" onClick={focusLibrary}>Jump to library</Button>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <Button onClick={onRefresh} disabled={refreshing || !device?.connected}>

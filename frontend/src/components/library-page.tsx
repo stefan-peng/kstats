@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { browseDefaults, updateBrowseState, useBrowseState } from "@/lib/browse-state"
 import { api } from "@/lib/api"
 import {
   formatDate,
@@ -65,32 +66,27 @@ export function LibrarySection({
   const [data, setData] = useState<BooksResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [status, setStatus] = useState("all")
-  const [availability, setAvailability] = useState("all")
-  const [source, setSource] = useState("all")
-  const [highlightFilter, setHighlightFilter] = useState("all")
-  const [series, setSeries] = useState("all")
-  const [publisher, setPublisher] = useState("all")
-  const [language, setLanguage] = useState("all")
-  const [page, setPage] = useState(1)
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "last_read", desc: true },
-  ])
+  const browse = useBrowseState()
+  const { search, status, availability, source, series, publisher, language, page } = browse
+  const highlightFilter = browse.highlights
+  const [debouncedSearch, setDebouncedSearch] = useState(search)
+  const [moreFilters, setMoreFilters] = useState(false)
+  const setSearch = (search: string) => updateBrowseState({ search, page: 1 }, "replace")
+  const setStatus = (status: string) => updateBrowseState({ status, month: "", page: 1 })
+  const setAvailability = (availability: string) => updateBrowseState({ availability, page: 1 })
+  const setSource = (source: string) => updateBrowseState({ source, page: 1 })
+  const setHighlightFilter = (highlights: string) => updateBrowseState({ highlights, page: 1 })
+  const setSeries = (series: string) => updateBrowseState({ series, page: 1 })
+  const setPublisher = (publisher: string) => updateBrowseState({ publisher, page: 1 })
+  const setLanguage = (language: string) => updateBrowseState({ language, page: 1 })
+  const setPage = (value: number | ((page: number) => number)) =>
+    updateBrowseState({ page: typeof value === "function" ? value(page) : value })
+  const sorting = useMemo<SortingState>(() => [{ id: browse.sort, desc: browse.direction === "desc" }], [browse.sort, browse.direction])
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedSearch(search)
-      setPage(1)
-    }, 250)
+    const timeout = window.setTimeout(() => setDebouncedSearch(search), 250)
     return () => window.clearTimeout(timeout)
   }, [search])
-
-  useEffect(() => {
-    setPage(1)
-    if (finishedMonth) setStatus("all")
-  }, [finishedMonth])
 
   const effectiveStatus = finishedMonth ? "all" : status
 
@@ -232,10 +228,8 @@ export function LibrarySection({
     columns,
     state: { sorting },
     onSortingChange: (updater) => {
-      setSorting((current) =>
-        typeof updater === "function" ? updater(current) : updater,
-      )
-      setPage(1)
+      const next = typeof updater === "function" ? updater(sorting) : updater
+      updateBrowseState({ sort: next[0]?.id ?? "last_read", direction: next[0]?.desc ? "desc" : "asc", page: 1 })
     },
     manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
@@ -256,55 +250,37 @@ export function LibrarySection({
     availability !== "all"
       ? {
           label: availability === "downloaded" ? "Downloaded" : "Cloud only",
-          clear: () => {
-            setAvailability("all")
-            setPage(1)
-          },
+          clear: () => setAvailability("all"),
         }
       : null,
     highlightFilter !== "all"
       ? {
           label: highlightFilter === "with" ? "With highlights" : "No highlights",
-          clear: () => {
-            setHighlightFilter("all")
-            setPage(1)
-          },
+          clear: () => setHighlightFilter("all"),
         }
       : null,
     source !== "all"
       ? {
           label: source === "kobo_store" ? "Kobo store" : "Sideloaded",
-          clear: () => {
-            setSource("all")
-            setPage(1)
-          },
+          clear: () => setSource("all"),
         }
       : null,
     series !== "all"
       ? {
           label: `Series: ${series}`,
-          clear: () => {
-            setSeries("all")
-            setPage(1)
-          },
+          clear: () => setSeries("all"),
         }
       : null,
     publisher !== "all"
       ? {
           label: `Publisher: ${publisher}`,
-          clear: () => {
-            setPublisher("all")
-            setPage(1)
-          },
+          clear: () => setPublisher("all"),
         }
       : null,
     language !== "all"
       ? {
           label: `Language: ${language}`,
-          clear: () => {
-            setLanguage("all")
-            setPage(1)
-          },
+          clear: () => setLanguage("all"),
         }
       : null,
   ].filter(Boolean) as Array<{ label: string; clear: () => void }>
@@ -312,7 +288,7 @@ export function LibrarySection({
   return (
     <section className="flex flex-col gap-5" aria-labelledby="library-heading">
       <header>
-        <h2 id="library-heading" className="font-serif text-2xl font-semibold">
+        <h2 id="library-heading" tabIndex={-1} className="scroll-mt-24 font-serif text-2xl font-semibold">
           Library
         </h2>
       </header>
@@ -320,9 +296,9 @@ export function LibrarySection({
       <div
         role="group"
         aria-label="Library filters"
-        className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(18rem,1.7fr)_repeat(7,minmax(0,1fr))]"
+        className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
       >
-        <div className="relative sm:col-span-2 xl:col-span-1">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search library"
@@ -332,11 +308,7 @@ export function LibrarySection({
             className="h-9 pl-9"
           />
         </div>
-        <Select value={status} onValueChange={(value) => {
-          if (finishedMonth) onClearFinishedMonth()
-          setStatus(value)
-          setPage(1)
-        }}>
+        <Select value={status} onValueChange={setStatus}>
           <SelectTrigger aria-label="Reading status" className="h-9 min-w-0 w-full">
             <SelectValue placeholder="Reading status" />
           </SelectTrigger>
@@ -349,81 +321,73 @@ export function LibrarySection({
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Select value={availability} onValueChange={(value) => {
-          setAvailability(value)
-          setPage(1)
-        }}>
-          <SelectTrigger aria-label="Availability" className="h-9 min-w-0 w-full">
-            <SelectValue placeholder="Availability" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">All books</SelectItem>
-              <SelectItem value="downloaded">Downloaded</SelectItem>
-              <SelectItem value="cloud">Cloud only</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select value={source} onValueChange={(value) => {
-          setSource(value)
-          setPage(1)
-        }}>
-          <SelectTrigger aria-label="Source" className="h-9 min-w-0 w-full">
-            <SelectValue placeholder="Source" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">All shown</SelectItem>
-              <SelectItem value="kobo_store">Kobo store</SelectItem>
-              <SelectItem value="sideloaded">Sideloaded</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select value={highlightFilter} onValueChange={(value) => {
-          setHighlightFilter(value)
-          setPage(1)
-        }}>
-          <SelectTrigger aria-label="Highlights" className="h-9 min-w-0 w-full">
-            <SelectValue placeholder="Highlights" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">All highlights</SelectItem>
-              <SelectItem value="with">With highlights</SelectItem>
-              <SelectItem value="without">No highlights</SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <FilterSelect
-          label="Series"
-          value={series}
-          options={options.series}
-          allLabel="All series"
-          onValueChange={(value) => {
-            setSeries(value)
-            setPage(1)
-          }}
-        />
-        <FilterSelect
-          label="Publisher"
-          value={publisher}
-          options={options.publishers}
-          allLabel="All publishers"
-          onValueChange={(value) => {
-            setPublisher(value)
-            setPage(1)
-          }}
-        />
-        <FilterSelect
-          label="Language"
-          value={language}
-          options={options.languages}
-          allLabel="All languages"
-          onValueChange={(value) => {
-            setLanguage(value)
-            setPage(1)
-          }}
-        />
+        <Button variant="outline" aria-expanded={moreFilters} aria-controls="more-library-filters" onClick={() => setMoreFilters((value) => !value)}>
+          More filters
+        </Button>
+        <Button variant="ghost" disabled={!search && status === "all" && activeFilters.length === 0} onClick={() => {
+          updateBrowseState({ ...browseDefaults, sort: browse.sort, direction: browse.direction, book: browse.book })
+        }}>Clear all</Button>
+        {moreFilters && (
+          <div id="more-library-filters" className="grid gap-2 sm:col-span-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Select value={availability} onValueChange={setAvailability}>
+              <SelectTrigger aria-label="Availability" className="h-9 min-w-0 w-full">
+                <SelectValue placeholder="Availability" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All books</SelectItem>
+                  <SelectItem value="downloaded">Downloaded</SelectItem>
+                  <SelectItem value="cloud">Cloud only</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={source} onValueChange={setSource}>
+              <SelectTrigger aria-label="Source" className="h-9 min-w-0 w-full">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All shown</SelectItem>
+                  <SelectItem value="kobo_store">Kobo store</SelectItem>
+                  <SelectItem value="sideloaded">Sideloaded</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={highlightFilter} onValueChange={setHighlightFilter}>
+              <SelectTrigger aria-label="Highlights" className="h-9 min-w-0 w-full">
+                <SelectValue placeholder="Highlights" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All highlights</SelectItem>
+                  <SelectItem value="with">With highlights</SelectItem>
+                  <SelectItem value="without">No highlights</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FilterSelect
+              label="Series"
+              value={series}
+              options={options.series}
+              allLabel="All series"
+              onValueChange={setSeries}
+            />
+            <FilterSelect
+              label="Publisher"
+              value={publisher}
+              options={options.publishers}
+              allLabel="All publishers"
+              onValueChange={setPublisher}
+            />
+            <FilterSelect
+              label="Language"
+              value={language}
+              options={options.languages}
+              allLabel="All languages"
+              onValueChange={setLanguage}
+            />
+          </div>
+        )}
       </div>
 
       {activeFilters.length > 0 ? (
@@ -601,7 +565,7 @@ function FilterSelect({
       <SelectContent>
         <SelectGroup>
           <SelectItem value="all">{allLabel}</SelectItem>
-          {options.map((option) => (
+          {(value !== "all" && !options.includes(value) ? [value, ...options] : options).map((option) => (
             <SelectItem key={option} value={option}>
               {option}
             </SelectItem>
