@@ -736,6 +736,16 @@ test("supports library search and sortable headers on the dashboard", async () =
   await waitFor(() => {
     expect(bookHeader).toHaveAttribute("aria-sort", "ascending")
   })
+  await user.click(within(bookHeader).getByRole("button"))
+  await user.click(within(bookHeader).getByRole("button"))
+  const lastReadHeader = screen.getByRole("columnheader", { name: "Last read" })
+  await waitFor(() => {
+    expect(lastReadHeader).toHaveAttribute("aria-sort", "descending")
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/sort=last_read.*direction=desc/),
+      { signal: expect.any(AbortSignal) },
+    )
+  })
 
   const remainingHeader = screen.getByRole("columnheader", {
     name: "Time remaining",

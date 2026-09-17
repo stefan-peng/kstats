@@ -229,7 +229,15 @@ export function LibrarySection({
     state: { sorting },
     onSortingChange: (updater) => {
       const next = typeof updater === "function" ? updater(sorting) : updater
-      updateBrowseState({ sort: next[0]?.id ?? "last_read", direction: next[0]?.desc ? "desc" : "asc", page: 1 })
+      const nextSort = next[0]
+      const direction = nextSort
+        ? nextSort.desc ? "desc" : "asc"
+        : browseDefaults.direction
+      updateBrowseState({
+        sort: nextSort?.id ?? browseDefaults.sort,
+        direction,
+        page: 1,
+      })
     },
     manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
