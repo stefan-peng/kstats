@@ -499,7 +499,7 @@ def test_newer_canonical_unread_state_wins_over_removed_history(client, settings
 
     assert detail["status"] == "unread"
     assert detail["percent_read"] == 0
-    assert detail["date_last_read"] == "2026-07-12T12:00:00Z"
+    assert detail["date_last_read"] is None
     assert detail["finished_at"] is None
     assert detail["remaining_seconds"] == 0
     assert detail["reading_seconds"] == 500

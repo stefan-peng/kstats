@@ -6,7 +6,7 @@ BOOK_MIME_TYPES = (
     "application/epub+zip",
     "application/pdf",
 )
-DERIVED_SCHEMA_VERSION = 5
+DERIVED_SCHEMA_VERSION = 6
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
@@ -358,7 +358,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
                read_status,
                CASE WHEN read_status = 2 THEN 100
                     ELSE MIN(MAX(COALESCE(percent_read, 0), 0), 100) END AS percent_read,
-               date_last_read,
+               CASE WHEN read_status = 0 THEN NULL ELSE date_last_read END AS date_last_read,
                finished_at,
                CASE WHEN read_status = 1 THEN MAX(COALESCE(current_estimate, 0), 0) ELSE 0 END
                    AS current_chapter_estimate_seconds,
