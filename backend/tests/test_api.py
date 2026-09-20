@@ -137,7 +137,12 @@ def test_startup_import_failure_keeps_server_available(tmp_path):
     settings = Settings(source_db=source, data_dir=tmp_path / "data")
 
     with TestClient(create_app(settings)) as client:
-        status = client.get("/api/device/status").json()
+        deadline = time.monotonic() + 5
+        while True:
+            status = client.get("/api/device/status").json()
+            if status["import_error"] or time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
         assert status["snapshot_available"] is False
         assert "Unable to import Kobo database" in status["import_error"]
         assert client.get("/api/dashboard").status_code == 404
@@ -873,6 +878,24 @@ def test_failed_import_keeps_previous_snapshot(settings):
     with sqlite3.connect(settings.snapshot_db) as connection:
         after = connection.execute("SELECT COUNT(*) FROM content").fetchone()[0]
     assert before == after == 4
+
+
+def test_import_uses_lock_free_read_for_macos_volume(settings, monkeypatch):
+    original_connect = sqlite3.connect
+    immutable_read = False
+
+    def connect(database, *args, **kwargs):
+        nonlocal immutable_read
+        if "immutable=1" in str(database):
+            immutable_read = True
+            return original_connect(settings.source_db, *args, **kwargs)
+        return original_connect(database, *args, **kwargs)
+
+    monkeypatch.setattr("backend.app.importer._is_macos_volume", lambda source: True)
+    monkeypatch.setattr("backend.app.importer.sqlite3.connect", connect)
+
+    assert import_database(settings)["snapshot_available"] is True
+    assert immutable_read
 
 
 def test_concurrent_imports_are_serialized_and_publish_complete_snapshots(

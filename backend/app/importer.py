@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -41,6 +42,32 @@ def _backup(source: sqlite3.Connection, destination: sqlite3.Connection) -> None
             raise ImportError("Timed out copying Kobo database; it may still be in use")
 
     source.backup(destination, pages=256, progress=progress)
+
+
+def _is_macos_volume(source: Path) -> bool:
+    return sys.platform == "darwin" and source.resolve().is_relative_to(
+        Path("/Volumes")
+    )
+
+
+def _copy_source_database(source: Path, destination: Path) -> None:
+    resolved_source = source.resolve()
+    source_uri = resolved_source.as_uri()
+
+    def backup(uri: str) -> None:
+        with (
+            closing(sqlite3.connect(uri, uri=True)) as source_connection,
+            closing(sqlite3.connect(destination)) as destination_connection,
+        ):
+            _backup(source_connection, destination_connection)
+
+    if _is_macos_volume(source):
+        # A Kobo exposed through macOS's FAT FSKit mount is stable while it is
+        # in USB storage mode, but SQLite locking can stall indefinitely.
+        backup(f"{source_uri}?mode=ro&immutable=1")
+        return
+
+    backup(f"{source_uri}?mode=ro")
 
 
 @contextmanager
@@ -238,12 +265,8 @@ def _import_database_locked(settings: Settings) -> dict[str, str | bool | None]:
 
     with _temporary_database(settings) as temporary:
         try:
-            source_uri = f"{source.resolve().as_uri()}?mode=ro"
-            with (
-                closing(sqlite3.connect(source_uri, uri=True)) as source_connection,
-                closing(sqlite3.connect(temporary)) as destination_connection,
-            ):
-                _backup(source_connection, destination_connection)
+            _copy_source_database(source, temporary)
+            with closing(sqlite3.connect(temporary)) as destination_connection:
                 integrity = destination_connection.execute(
                     "PRAGMA integrity_check"
                 ).fetchone()

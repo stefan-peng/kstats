@@ -1,5 +1,6 @@
 import sqlite3
 import struct
+import time
 from pathlib import Path
 from typing import Any
 
@@ -310,4 +311,8 @@ def settings(tmp_path: Path) -> Settings:
 @pytest.fixture
 def client(settings: Settings):
     with TestClient(create_app(settings)) as test_client:
+        deadline = time.monotonic() + 5
+        while not settings.snapshot_db.is_file() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert settings.snapshot_db.is_file()
         yield test_client

@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from unittest.mock import Mock
@@ -27,6 +28,9 @@ def test_startup_refreshes_existing_snapshot(settings):
         connection.execute("UPDATE content SET Title = 'New title' WHERE ContentID = 'book-reading'")
 
     with TestClient(create_app(settings)) as client:
+        deadline = time.monotonic() + 5
+        while snapshot_title(settings) != "New title" and time.monotonic() < deadline:
+            time.sleep(0.01)
         assert snapshot_title(settings) == "New title"
         assert client.get("/api/device/status").json()["import_error"] is None
 

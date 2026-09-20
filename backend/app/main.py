@@ -21,12 +21,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     async def watch_device():
         while True:
-            await anyio.sleep(POLL_INTERVAL_SECONDS)
             await anyio.to_thread.run_sync(monitor.poll)
+            await anyio.sleep(POLL_INTERVAL_SECONDS)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        await anyio.to_thread.run_sync(monitor.poll)
         await anyio.to_thread.run_sync(prepare_snapshot, app_settings)
         async with anyio.create_task_group() as tasks:
             tasks.start_soon(watch_device)
