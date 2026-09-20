@@ -142,22 +142,27 @@ def _start(
     )
 
 
+def _server_command(config: ServerConfig, *, reload: bool = False) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "backend.app.server",
+        "--host",
+        config.host,
+        "--port",
+        str(config.backend_port),
+    ]
+    if reload:
+        command.append("--reload")
+    return command
+
+
 def dev() -> None:
     """Run the reload-enabled API and Vite development server."""
     _configure_break_signal()
     config = _load_config()
     commands = [
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "backend.app.main:app",
-            "--reload",
-            "--host",
-            config.host,
-            "--port",
-            str(config.backend_port),
-        ],
+        _server_command(config, reload=True),
         [
             _npm(),
             "run",
@@ -212,16 +217,7 @@ def prod() -> None:
     if build.returncode:
         raise SystemExit(build.returncode)
 
-    command = [
-        sys.executable,
-        "-m",
-        "uvicorn",
-        "backend.app.main:app",
-        "--host",
-        config.host,
-        "--port",
-        str(config.backend_port),
-    ]
+    command = _server_command(config)
     try:
         server = _start(command)
     except OSError as error:

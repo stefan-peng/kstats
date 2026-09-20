@@ -81,3 +81,18 @@ def test_stop_all_signals_every_process_before_waiting(monkeypatch):
         ("wait", 1),
         ("wait", 2),
     ]
+
+
+def test_server_command_uses_rich_logging_launcher():
+    config = ServerConfig(host="0.0.0.0", backend_port=9000)
+
+    assert cli._server_command(config, reload=True) == [
+        cli.sys.executable,
+        "-m",
+        "backend.app.server",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9000",
+        "--reload",
+    ]

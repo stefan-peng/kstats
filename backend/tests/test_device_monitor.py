@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -59,6 +60,20 @@ def test_monitor_imports_once_per_connection_and_after_manual_refresh(settings, 
     monitor.import_now()
     monitor.poll()
     assert spy.call_count == 3
+
+
+def test_monitor_logs_connection_import_and_disconnection(settings, caplog):
+    caplog.set_level(logging.INFO, logger=device_monitor.__name__)
+    monitor = DeviceMonitor(settings)
+
+    monitor.poll()
+    unplugged = settings.source_db.with_suffix(".unplugged")
+    settings.source_db.rename(unplugged)
+    monitor.poll()
+
+    assert "Kobo connected:" in caplog.text
+    assert "Imported Kobo snapshot from" in caplog.text
+    assert "Kobo disconnected:" in caplog.text
 
 
 def test_monitor_retries_transient_failure_without_a_file_change(settings, monkeypatch, caplog):

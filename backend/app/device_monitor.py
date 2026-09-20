@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -30,6 +31,7 @@ class DeviceMonitor:
         self.settings = settings
         self._lock = threading.Lock()
         self._imported_version: tuple | None = None
+        self._connected_source: Path | None = None
         self.import_error: str | None = None
 
     def status(self) -> dict[str, str | bool | None]:
@@ -37,13 +39,20 @@ class DeviceMonitor:
 
     def _import(self, source: Path, version: tuple) -> dict[str, str | bool | None]:
         # Pin the detected path for this attempt; drive discovery can change mid-import.
+        started = time.monotonic()
         try:
             result = import_database(replace(self.settings, source_db=source))
         except (ImportError, OSError) as error:
             self.import_error = str(error)
             raise ImportError(str(error)) from error
         self._imported_version = version
+        self._connected_source = source
         self.import_error = None
+        logger.info(
+            "Imported Kobo snapshot from %s in %.2fs",
+            source,
+            time.monotonic() - started,
+        )
         return {**result, "import_error": None}
 
     def import_now(self) -> dict[str, str | bool | None]:
@@ -61,9 +70,15 @@ class DeviceMonitor:
             try:
                 source = self.settings.resolve_source_db()
                 if not source.is_file():
+                    if self._connected_source is not None:
+                        logger.info("Kobo disconnected: %s", self._connected_source)
+                    self._connected_source = None
                     self._imported_version = None
                     self.import_error = None
                     return
+                if source != self._connected_source:
+                    logger.info("Kobo connected: %s", source)
+                    self._connected_source = source
                 version = _source_version(source)
                 if (
                     version != self._imported_version
