@@ -21,6 +21,7 @@ function sameDeviceStatus(left: DeviceStatus | null, right: DeviceStatus) {
     left.snapshot_available === right.snapshot_available &&
     left.imported_at === right.imported_at &&
     left.source === right.source &&
+    left.importing === right.importing &&
     left.import_error === right.import_error
 }
 
@@ -38,6 +39,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importFailure, setImportFailure] = useState(false)
   const loadedSnapshotRef = useRef<string | null>(null)
   const importInFlightRef = useRef(false)
   const statusCheckInFlightRef = useRef<Promise<void> | null>(null)
@@ -70,6 +72,7 @@ export default function App() {
     try {
       const status = await refreshDeviceStatus(signal)
       if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
+      setImportFailure(Boolean(status.import_error))
       if (!status.snapshot_available) {
         setDashboard(null)
         loadedSnapshotRef.current = null
@@ -80,7 +83,16 @@ export default function App() {
         setError(status.import_error || null)
         return
       }
-      const nextDashboard = await api.dashboard(signal)
+      let nextDashboard: DashboardData
+      try {
+        nextDashboard = await api.dashboard(signal)
+      } catch (reason) {
+        if (refreshVersionRef.current === refreshVersion && !signal?.aborted) {
+          setImportFailure(false)
+          setError(`Unable to load the latest snapshot. ${reason instanceof Error ? reason.message : "Reading data request failed"}`)
+        }
+        return
+      }
       if (refreshVersionRef.current !== refreshVersion || signal?.aborted) return
       setDashboard(nextDashboard)
       loadedSnapshotRef.current = snapshotVersion(status)
@@ -126,11 +138,13 @@ export default function App() {
       setDashboard(nextDashboard)
       loadedSnapshotRef.current = snapshotVersion(status)
       setError(null)
+      setImportFailure(false)
       toast.success("Kobo snapshot refreshed")
     } catch (reason) {
       if (controller.signal.aborted || isAbortError(reason)) return
       const message = reason instanceof Error ? reason.message : "Refresh failed"
       if (imported) {
+        setImportFailure(false)
         setDashboard(null)
         loadedSnapshotRef.current = null
         setError(`Kobo snapshot imported, but reading data could not be loaded. ${message}`)
@@ -139,6 +153,7 @@ export default function App() {
         await refreshDeviceStatus(controller.signal).catch(() => undefined)
         if (controller.signal.aborted) return
         setError(message)
+        setImportFailure(true)
         if (dashboardRef.current) {
           toast.warning("Kobo import failed; using the previous snapshot")
         } else {
@@ -192,6 +207,7 @@ export default function App() {
           loading={loading}
           refreshing={refreshing}
           error={error}
+          importFailure={importFailure}
           onRefresh={refresh}
           onOpenBook={setSelectedBook}
         />

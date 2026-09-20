@@ -13,6 +13,7 @@ export interface DeviceStatus {
   connected: boolean
   snapshot_available: boolean
   import_error?: string | null
+  importing?: boolean
   imported_at: string | null
   source: string | null
 }

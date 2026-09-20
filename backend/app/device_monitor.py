@@ -33,18 +33,26 @@ class DeviceMonitor:
         self._imported_version: tuple | None = None
         self._connected_source: Path | None = None
         self.import_error: str | None = None
+        self.importing = False
 
     def status(self) -> dict[str, str | bool | None]:
-        return {**device_status(self.settings), "import_error": self.import_error}
+        return {
+            **device_status(self.settings),
+            "import_error": self.import_error,
+            "importing": self.importing,
+        }
 
     def _import(self, source: Path, version: tuple) -> dict[str, str | bool | None]:
         # Pin the detected path for this attempt; drive discovery can change mid-import.
         started = time.monotonic()
+        self.importing = True
         try:
             result = import_database(replace(self.settings, source_db=source))
         except (ImportError, OSError) as error:
             self.import_error = str(error)
             raise ImportError(str(error)) from error
+        finally:
+            self.importing = False
         self._imported_version = version
         self._connected_source = source
         self.import_error = None
@@ -60,8 +68,9 @@ class DeviceMonitor:
             try:
                 source = self.settings.resolve_source_db()
                 return self._import(source, _source_version(source))
-            except OSError as error:
+            except (ImportError, OSError) as error:
                 self.import_error = str(error)
+                logger.warning("Manual Kobo import failed: %s", error)
                 raise ImportError(str(error)) from error
 
     def poll(self) -> None:
@@ -75,6 +84,8 @@ class DeviceMonitor:
                     self._connected_source = None
                     self._imported_version = None
                     self.import_error = None
+                    if previous_error:
+                        logger.info("Cleared Kobo import error: device is disconnected")
                     return
                 if source != self._connected_source:
                     logger.info("Kobo connected: %s", source)

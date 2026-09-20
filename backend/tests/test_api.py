@@ -880,22 +880,49 @@ def test_failed_import_keeps_previous_snapshot(settings):
     assert before == after == 4
 
 
-def test_import_uses_lock_free_read_for_macos_volume(settings, monkeypatch):
-    original_connect = sqlite3.connect
-    immutable_read = False
+@pytest.mark.parametrize("macos_volume", [False, True])
+def test_import_preserves_committed_wal_changes(settings, monkeypatch, macos_volume):
+    monkeypatch.setattr("backend.app.importer._is_macos_volume", lambda source: macos_volume)
+    connection = sqlite3.connect(settings.source_db)
+    try:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA wal_autocheckpoint=0")
+        connection.execute("UPDATE content SET Title = 'WAL title' WHERE ContentID = 'book-reading'")
+        connection.commit()
+        before = settings.source_db.read_bytes()
+        wal = settings.source_db.with_name(settings.source_db.name + "-wal")
+        before_wal = wal.read_bytes()
+        assert import_database(settings)["snapshot_available"] is True
+        with sqlite3.connect(settings.snapshot_db) as snapshot:
+            assert snapshot.execute("SELECT title FROM kstats_books WHERE content_id = 'book-reading'").fetchone() == ("WAL title",)
+            assert snapshot.execute("PRAGMA journal_mode").fetchone() == ("delete",)
+        assert settings.source_db.read_bytes() == before
+        assert wal.read_bytes() == before_wal
+        assert not list(settings.data_dir.glob(".kobo-source-*"))
+    finally:
+        connection.close()
 
-    def connect(database, *args, **kwargs):
-        nonlocal immutable_read
-        if "immutable=1" in str(database):
-            immutable_read = True
-            return original_connect(settings.source_db, *args, **kwargs)
-        return original_connect(database, *args, **kwargs)
 
-    monkeypatch.setattr("backend.app.importer._is_macos_volume", lambda source: True)
-    monkeypatch.setattr("backend.app.importer.sqlite3.connect", connect)
+def test_macos_copy_rejects_changing_source(settings, monkeypatch):
+    from backend.app import importer
 
-    assert import_database(settings)["snapshot_available"] is True
-    assert immutable_read
+    import_database(settings)
+    before = settings.snapshot_db.read_bytes()
+    copyfile = importer.shutil.copyfile
+
+    def changing_copy(source, destination):
+        result = copyfile(source, destination)
+        if source == settings.source_db.resolve():
+            with sqlite3.connect(source) as connection:
+                connection.execute("UPDATE content SET Title = 'Changed' WHERE ContentID = 'book-reading'")
+        return result
+
+    monkeypatch.setattr(importer, "_is_macos_volume", lambda source: True)
+    monkeypatch.setattr(importer.shutil, "copyfile", changing_copy)
+    with pytest.raises(KoboImportError, match="changed while copying"):
+        import_database(settings)
+    assert settings.snapshot_db.read_bytes() == before
+    assert not list(settings.data_dir.glob(".kobo-source-*"))
 
 
 def test_concurrent_imports_are_serialized_and_publish_complete_snapshots(
@@ -1103,3 +1130,30 @@ def test_completion_calendar_fills_gaps_across_years_and_ignores_bad_dates(clien
         {"month": "2025-12", "count": 0},
         {"month": "2026-01", "count": 1},
     ]
+
+
+def test_macos_copy_recovers_hot_rollback_journal_locally(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+    from backend.app import importer
+
+    source = tmp_path / 'source.sqlite'
+    destination = tmp_path / 'snapshot.sqlite'
+    with sqlite3.connect(source) as connection:
+        connection.execute('CREATE TABLE example (value TEXT)')
+        connection.execute("INSERT INTO example VALUES ('committed')")
+    subprocess.run([
+        sys.executable, '-c',
+        "import sqlite3, os, sys; c=sqlite3.connect(sys.argv[1]); "
+        "c.execute('PRAGMA cache_size=1'); c.execute('BEGIN IMMEDIATE'); "
+        "c.execute(\"UPDATE example SET value = hex(zeroblob(100000))\"); os._exit(0)",
+        str(source),
+    ], check=True, timeout=10)
+    journal = source.with_name(source.name + '-journal')
+    assert journal.is_file()
+    before = source.read_bytes(), journal.read_bytes()
+    monkeypatch.setattr(importer, '_is_macos_volume', lambda source: True)
+    importer._copy_source_database(source, destination)
+    with sqlite3.connect(destination) as connection:
+        assert connection.execute('SELECT value FROM example').fetchone() == ('committed',)
+    assert (source.read_bytes(), journal.read_bytes()) == before

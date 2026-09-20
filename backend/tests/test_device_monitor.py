@@ -42,6 +42,9 @@ def test_startup_failure_preserves_existing_snapshot(settings):
     with TestClient(create_app(settings)) as client:
         assert client.get("/api/dashboard").status_code == 200
         assert snapshot_title(settings) == "Current Book"
+        deadline = time.monotonic() + 5
+        while not client.get("/api/device/status").json()["import_error"] and time.monotonic() < deadline:
+            time.sleep(0.01)
         assert client.get("/api/device/status").json()["import_error"]
 
 
@@ -286,3 +289,56 @@ def test_unknown_api_endpoint_is_not_served_as_html(client):
     response = client.get("/api/not-an-endpoint")
     assert response.status_code == 404
     assert response.headers["content-type"] == "application/json"
+
+
+def test_startup_serves_saved_snapshot_during_slow_import(settings, monkeypatch):
+    import_database(settings)
+    with sqlite3.connect(settings.source_db) as connection:
+        connection.execute("UPDATE content SET Title = 'Updated book' WHERE ContentID = 'book-reading'")
+    entered = threading.Event()
+    release = threading.Event()
+    original = device_monitor.import_database
+
+    def slow_import(settings):
+        entered.set()
+        assert release.wait(5)
+        return original(settings)
+
+    monkeypatch.setattr(device_monitor, 'import_database', slow_import)
+    try:
+        with TestClient(create_app(settings)) as client:
+            assert entered.wait(2)
+            try:
+                assert client.get('/api/dashboard').status_code == 200
+                assert snapshot_title(settings) == 'Current Book'
+                assert client.get('/api/device/status').json()['importing'] is True
+            finally:
+                release.set()
+            deadline = time.monotonic() + 3
+            while client.get('/api/device/status').json()['importing'] and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert snapshot_title(settings) == 'Updated book'
+            assert client.get('/api/device/status').json()['import_error'] is None
+    finally:
+        release.set()
+
+
+def test_import_error_clears_on_disconnect_and_success(settings, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger=device_monitor.__name__)
+    monitor = DeviceMonitor(settings)
+    original = device_monitor.import_database
+    monkeypatch.setattr(device_monitor, 'import_database', Mock(side_effect=ImportError('copy failed')))
+    with pytest.raises(ImportError):
+        monitor.import_now()
+    assert 'Manual Kobo import failed: copy failed' in caplog.text
+    assert monitor.status()['importing'] is False
+    unplugged = settings.source_db.with_suffix('.unplugged')
+    settings.source_db.rename(unplugged)
+    monitor.poll()
+    assert monitor.status()['import_error'] is None
+    assert 'Cleared Kobo import error' in caplog.text
+    unplugged.rename(settings.source_db)
+    monkeypatch.setattr(device_monitor, 'import_database', original)
+    monitor.poll()
+    assert monitor.status()['import_error'] is None
+    assert 'Imported Kobo snapshot' in caplog.text

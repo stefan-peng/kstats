@@ -62,9 +62,36 @@ def _copy_source_database(source: Path, destination: Path) -> None:
             _backup(source_connection, destination_connection)
 
     if _is_macos_volume(source):
-        # A Kobo exposed through macOS's FAT FSKit mount is stable while it is
-        # in USB storage mode, but SQLite locking can stall indefinitely.
-        backup(f"{source_uri}?mode=ro&immutable=1")
+        # FSKit volumes can stall SQLite locking. Copy the quiescent USB
+        # database and its journals locally, then let SQLite recover/read them.
+        # immutable=1 would silently ignore committed WAL transactions.
+        paths = [
+            resolved_source,
+            Path(f"{resolved_source}-wal"),
+            Path(f"{resolved_source}-journal"),
+        ]
+
+        def versions() -> list[tuple[int, int, int, int] | None]:
+            result = []
+            for path in paths:
+                try:
+                    stat = path.stat()
+                except FileNotFoundError:
+                    result.append(None)
+                else:
+                    result.append((stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
+            return result
+
+        with tempfile.TemporaryDirectory(prefix=".kobo-source-", dir=destination.parent) as directory:
+            local = (Path(directory) / resolved_source.name).resolve()
+            before = versions()
+            for path, version in zip(paths, before):
+                if version is not None:
+                    shutil.copyfile(path, Path(directory) / path.name)
+            if versions() != before:
+                raise ImportError("Kobo database changed while copying; retrying is required")
+            # Open read-write locally so hot rollback journals can be recovered.
+            backup(f"{local.as_uri()}?mode=rw")
         return
 
     backup(f"{source_uri}?mode=ro")

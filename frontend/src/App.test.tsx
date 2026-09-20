@@ -1363,3 +1363,74 @@ test("copies highlights and notes and explains clipboard failure", async () => {
   expect(await screen.findByText("Unable to copy. Use Download text to save your highlights.")).toBeVisible()
   clipboard.mockRestore()
 })
+
+test("reports a background dashboard failure accurately and clears it after retry", async () => {
+  const fallback = fetch
+  let updated = false
+  let fail = true
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes("/api/device/status")) return Response.json({
+      connected: true, snapshot_available: true, import_error: null,
+      imported_at: updated ? "2026-06-18T13:00:00Z" : "2026-06-18T12:00:00Z",
+      source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+    })
+    if (updated && fail && url.includes("/api/dashboard")) return Response.json({ detail: "Query failed" }, { status: 500 })
+    return fallback(input, init)
+  }))
+  render(<App />)
+  await screen.findByRole("heading", { name: "Reading overview" })
+  updated = true
+  await act(async () => { window.dispatchEvent(new Event("focus")) })
+  expect(await screen.findByText("Unable to update reading data")).toBeVisible()
+  expect(screen.queryByText(/latest Kobo import failed/)).not.toBeInTheDocument()
+  expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+  fail = false
+  await act(async () => { window.dispatchEvent(new Event("focus")) })
+  await waitFor(() => expect(screen.queryByText("Unable to update reading data")).not.toBeInTheDocument())
+})
+
+test("clears import warnings on disconnect without reloading the saved snapshot", async () => {
+  const fallback = fetch
+  let connected = true
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/device/status")) return Response.json({
+      connected, snapshot_available: true, imported_at: "2026-06-18T12:00:00Z",
+      source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite",
+      import_error: connected ? "Copy failed" : null,
+    })
+    return fallback(input, init)
+  }))
+  render(<App />)
+  expect(await screen.findByText("Using the previous snapshot")).toBeVisible()
+  connected = false
+  await act(async () => { window.dispatchEvent(new Event("focus")) })
+  expect(await screen.findByText("Kobo disconnected")).toBeVisible()
+  expect(screen.queryByText("Using the previous snapshot")).not.toBeInTheDocument()
+  expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+})
+
+test.each([true, false])("shows startup import progress with saved snapshot available=%s", async (saved) => {
+  const fallback = fetch
+  let importing = true
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/device/status")) return Response.json({
+      connected: true, snapshot_available: saved || !importing, importing,
+      imported_at: importing ? (saved ? "2026-06-18T12:00:00Z" : null) : "2026-06-18T13:00:00Z",
+      source: "/Volumes/KOBOeReader/.kobo/KoboReader.sqlite", import_error: null,
+    })
+    return fallback(input, init)
+  }))
+  render(<App />)
+  if (saved) {
+    expect(await screen.findByRole("heading", { name: "Reading overview" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled()
+  } else {
+    expect(await screen.findByText("Importing from Kobo…")).toBeVisible()
+    expect(screen.queryByText("Reading data is unavailable")).not.toBeInTheDocument()
+  }
+  importing = false
+  await act(async () => { window.dispatchEvent(new Event("focus")) })
+  expect(await screen.findByRole("button", { name: "Refresh from Kobo" })).toBeEnabled()
+  expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+})

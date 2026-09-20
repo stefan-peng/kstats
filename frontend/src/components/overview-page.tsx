@@ -85,6 +85,7 @@ export function OverviewPage({
   loading,
   refreshing,
   error,
+  importFailure,
   onRefresh,
   onOpenBook,
 }: {
@@ -93,6 +94,7 @@ export function OverviewPage({
   loading: boolean
   refreshing: boolean
   error: string | null
+  importFailure: boolean
   onRefresh: () => void
   onOpenBook: (contentId: string) => void
 }) {
@@ -141,11 +143,11 @@ export function OverviewPage({
   if (!dashboard) {
     return (
       <main className="mx-auto max-w-7xl p-5 md:p-8">
-        <Alert variant="destructive">
-          <AlertTitle>Reading data is unavailable</AlertTitle>
+        <Alert variant={device?.importing && !device.import_error ? "default" : "destructive"}>
+          <AlertTitle>{device?.importing && !device.import_error ? "Importing from Kobo…" : "Reading data is unavailable"}</AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-3">
-            <span>{error ?? "Connect your Kobo and import its database."}</span>
-            <Button size="sm" onClick={onRefresh} disabled={!device?.connected}>
+            <span>{device?.importing && !device.import_error ? "Your reading data will appear when the import finishes." : error ?? "Connect your Kobo and import its database."}</span>
+            <Button size="sm" onClick={onRefresh} disabled={refreshing || device?.importing || !device?.connected}>
               <RefreshCw data-icon="inline-start" />
               Import from Kobo
             </Button>
@@ -189,9 +191,9 @@ export function OverviewPage({
       {error && (
         <Alert>
           <TriangleAlert />
-          <AlertTitle>Using the previous snapshot</AlertTitle>
+          <AlertTitle>{importFailure ? "Using the previous snapshot" : "Unable to update reading data"}</AlertTitle>
           <AlertDescription>
-            The latest Kobo import failed, so your existing reading data was kept. {error}
+            {importFailure ? "The latest Kobo import failed, so your existing reading data was kept. " : "Your displayed reading data was kept. "}{error}
           </AlertDescription>
         </Alert>
       )}
@@ -203,12 +205,12 @@ export function OverviewPage({
           <Button variant="link" className="px-0" onClick={focusLibrary}>Jump to library</Button>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <Button onClick={onRefresh} disabled={refreshing || !device?.connected}>
+          <Button onClick={onRefresh} disabled={refreshing || device?.importing || !device?.connected}>
             <RefreshCw
               data-icon="inline-start"
-              className={refreshing ? "animate-spin" : undefined}
+              className={refreshing || device?.importing ? "animate-spin" : undefined}
             />
-            {refreshing ? "Refreshing…" : "Refresh from Kobo"}
+            {refreshing || device?.importing ? "Refreshing…" : "Refresh from Kobo"}
           </Button>
           <p className="text-xs text-muted-foreground">
             {device?.imported_at
