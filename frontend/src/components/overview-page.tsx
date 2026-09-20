@@ -215,9 +215,6 @@ export function OverviewPage({
               ? `Snapshot from ${formatDateTime(device.imported_at)}`
               : "No snapshot imported"}
           </p>
-          <p className="text-xs text-muted-foreground">
-            {formatNumber(dashboard.totals.library)} books shown; {formatNumber(dashboard.source_summary.ignored_custom_catalog)} custom/catalog rows ignored
-          </p>
         </div>
       </header>
 
@@ -297,12 +294,6 @@ export function OverviewPage({
         <Card>
           <CardHeader>
             <CardTitle>Monthly completions</CardTitle>
-            {dashboard.monthly_completions.length > 0 && (
-              <CardDescription>
-                12 calendar months through {formatMonthYear(dashboard.monthly_completions.at(-1)!.month)}.
-                Based on recorded completion dates.
-              </CardDescription>
-            )}
           </CardHeader>
           <CardContent>
             {dashboard.monthly_completions.length === 0 ? (
@@ -386,15 +377,7 @@ export function OverviewPage({
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle>Reading duration</CardTitle>
-            <CardDescription className="mt-1">
-              {dashboard.reading_duration.coverage_start &&
-              dashboard.reading_duration.coverage_end
-                ? `Estimated from Kobo session telemetry · ${formatDurationPeriod(dashboard.reading_duration.coverage_start, "day", true)}–${formatDurationPeriod(dashboard.reading_duration.coverage_end, "day", true)}`
-                : "Estimated from Kobo session telemetry"}
-            </CardDescription>
-          </div>
+          <CardTitle>Reading duration</CardTitle>
           <CardAction className="flex flex-wrap justify-end gap-2 max-sm:col-span-full max-sm:col-start-1 max-sm:row-start-3">
             <div
               role="group"
@@ -489,22 +472,6 @@ export function OverviewPage({
               </ResponsiveContainer>
             </div>
           )}
-          <p className="mt-3 text-xs text-muted-foreground">
-            Book totals report {formatDuration(dashboard.totals.reading_seconds)} across the library.
-            Detailed session records contain {formatDuration(dashboard.reading_duration.source_seconds)};
-            their coverage can be shorter, and dates are estimated. Empty periods do not prove that you did not read.
-          </p>
-          {dashboard.reading_duration.skipped_rows > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {formatNumber(dashboard.reading_duration.skipped_rows)} session records could not be used.
-            </p>
-          )}
-          {dashboard.reading_duration.unallocated_seconds > 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {formatDuration(dashboard.reading_duration.unallocated_seconds)} could
-              not be assigned to a calendar date.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -695,7 +662,7 @@ function DurationHeatmapView({ heatmap }: { heatmap: DurationHeatmap }) {
           </div>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">{dateRange}. Faded cells have no recorded data.</p>
+      <p className="text-xs text-muted-foreground">{dateRange}</p>
     </div>
   )
 }

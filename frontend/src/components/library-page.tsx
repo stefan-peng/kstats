@@ -518,12 +518,7 @@ export function LibrarySection({
         </div>
       )}
 
-      <footer className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-muted-foreground">
-          {data
-            ? `${formatNumber(data.total)} ${data.total === 1 ? "book" : "books"}; ${formatNumber(data.source_summary.ignored_custom_catalog)} custom/catalog rows ignored`
-            : "Loading books…"}
-        </p>
+      <footer className="flex justify-end text-sm">
         <div className="flex items-center gap-2">
           <span className="mr-2 text-muted-foreground">
             Page {data?.page ?? page} of {data?.pages ?? 1}

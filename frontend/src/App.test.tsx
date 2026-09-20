@@ -207,6 +207,10 @@ test("renders overview metrics from the imported snapshot", async () => {
     minute: "2-digit",
   }).format(new Date("2026-06-18T12:00:00Z"))
   expect(screen.getByText(`Snapshot from ${importedAt}`)).toBeVisible()
+  expect(screen.queryByText(/custom\/catalog rows ignored/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Based on recorded completion dates/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Book totals report/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/session records could not be used/)).not.toBeInTheDocument()
   expect(screen.getByText("3h 1m")).toBeVisible()
   expect(await screen.findByText("4h 19m")).toBeVisible()
   expect(screen.getAllByText("Current Book")).toHaveLength(2)
@@ -234,9 +238,7 @@ test("switches the reading duration chart granularity without refetching", async
   render(<App />)
 
   expect(await screen.findByText("Reading duration")).toBeVisible()
-  expect(
-    screen.getByText(/Estimated from Kobo session telemetry/),
-  ).toBeVisible()
+  expect(screen.queryByText(/Estimated from Kobo session telemetry/)).not.toBeInTheDocument()
   expect(screen.getByRole("img", { name: "Estimated reading duration by week" })).toBeVisible()
   expect(screen.getByRole("button", { name: "Weekly" })).toHaveAttribute(
     "aria-pressed",
@@ -765,8 +767,8 @@ test("supports library search and sortable headers on the dashboard", async () =
       { signal: expect.any(AbortSignal) },
     )
   })
-  expect(await screen.findByText(/1 book; 3,375 custom\/catalog rows ignored/)).toBeVisible()
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  expect(screen.queryByText(/custom\/catalog rows ignored/)).not.toBeInTheDocument()
   expect(row).toHaveClass("hover:bg-muted/50")
   expect(row).toHaveAttribute("data-interactive", "true")
   expect(within(row).getByLabelText("Current Book cover")).toBeVisible()
@@ -898,6 +900,8 @@ test("opens book details from the embedded library", async () => {
   expect(
     within(dialog).getByRole("img", { name: "Estimated reading time by day" }),
   ).toBeVisible()
+  expect(within(dialog).queryByText(/Session records contain/)).not.toBeInTheDocument()
+  expect(within(dialog).queryByText(/session records could not be used/)).not.toBeInTheDocument()
   expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
 })

@@ -274,21 +274,6 @@ export function BookDetailDialog({
                       </BarChart>
                     </ChartContainer>
                   )}
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Session records contain {formatDuration(book.reading_duration.source_seconds)} and may cover less history than the book total.
-                    Missing dates do not prove that you did not read.
-                  </p>
-                  {book.reading_duration.skipped_rows > 0 && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {formatNumber(book.reading_duration.skipped_rows)} session records could not be used.
-                    </p>
-                  )}
-                  {book.reading_duration.unallocated_seconds > 0 ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {formatDuration(book.reading_duration.unallocated_seconds)} could
-                      not be assigned to a calendar date.
-                    </p>
-                  ) : null}
                 </CardContent>
               </Card>
 
