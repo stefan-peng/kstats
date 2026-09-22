@@ -826,7 +826,7 @@ def test_book_detail_includes_visible_highlights(client):
     ]
 
 
-def test_book_detail_reports_corrupt_dictionary_event(client, settings):
+def test_book_detail_skips_corrupt_dictionary_event(client, settings):
     with sqlite3.connect(settings.snapshot_db) as connection:
         connection.execute(
             """
@@ -839,8 +839,11 @@ def test_book_detail_reports_corrupt_dictionary_event(client, settings):
 
     response = client.get("/api/book", params={"content_id": "book-reading"})
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Unexpected end of Kobo event payload"
+    assert response.status_code == 200
+    assert response.json()["title"] == "Current Book"
+    assert response.json()["dictionary_lookups"] == [
+        {"word": "perspicacious", "dictionary": "en"}
+    ]
 
 
 def test_device_status_reports_corrupt_import_metadata(client, settings):

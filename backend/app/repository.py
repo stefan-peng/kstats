@@ -391,7 +391,10 @@ class Repository:
                     [content_id, DICTIONARY_EVENT_TYPE],
                 ).fetchall()
                 for event_row in event_rows:
-                    payload = decode_event_payload(event_row["ExtraData"])
+                    try:
+                        payload = decode_event_payload(event_row["ExtraData"])
+                    except EventDecodeError:
+                        continue
                     lookup = parse_dictionary_event(payload)
                     if lookup is None:
                         continue
