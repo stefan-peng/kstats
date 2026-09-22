@@ -303,6 +303,8 @@ class Repository:
             total = connection.execute(
                 f"SELECT COUNT(*) FROM kstats_books {where}", parameters
             ).fetchone()[0]
+            pages = max(1, math.ceil(total / page_size))
+            page = min(page, pages)
             rows = connection.execute(
                 f"""
                 {BOOK_SELECT}
@@ -320,7 +322,7 @@ class Repository:
             "page": page,
             "page_size": page_size,
             "total": total,
-            "pages": max(1, math.ceil(total / page_size)),
+            "pages": pages,
             "filter_options": filter_options,
             "source_summary": source_summary,
         }

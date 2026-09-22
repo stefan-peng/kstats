@@ -116,7 +116,12 @@ export function LibrarySection({
     api
       .books(query, controller.signal)
       .then((response) => {
-        if (!controller.signal.aborted) setData(response)
+        if (controller.signal.aborted) return
+        if (page > response.pages) {
+          updateBrowseState({ page: response.pages }, "replace")
+          return
+        }
+        setData(response)
       })
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message)

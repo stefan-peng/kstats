@@ -167,6 +167,16 @@ def test_books_support_search_filters_and_sorting(client):
     assert payload["items"][0]["cover_url"] is None
 
 
+def test_books_clamps_page_after_results_shrink(client):
+    response = client.get("/api/books", params={"page": 3, "page_size": 2})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["page"] == 2
+    assert payload["pages"] == 2
+    assert len(payload["items"]) == 1
+
+
 def test_books_sort_by_highlight_count(client):
     descending = client.get(
         "/api/books", params={"sort": "highlights", "direction": "desc"}

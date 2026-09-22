@@ -335,6 +335,7 @@ test("does not rerender the dashboard when device status is unchanged", async ()
   )
 
   await screen.findByRole("heading", { name: "Reading overview" })
+  await screen.findByRole("button", { name: "Open Current Book" })
   const rendersAfterLoad = onRender.mock.calls.length
 
   await act(async () => {
@@ -1309,6 +1310,14 @@ test("names a failed book dialog and retries the request", async () => {
 
 test("restores bookmarked library state without resetting the page", async () => {
   window.history.replaceState(null, "", "/?search=Ada&status=reading&page=2&sort=title&direction=asc&publisher=Press")
+  const fallback = fetch
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/books?")) return Response.json({
+      items: dashboard.continue_reading, page: 2, page_size: 20, total: 21, pages: 2,
+      filter_options: filterOptions, source_summary: dashboard.source_summary,
+    })
+    return fallback(input, init)
+  }))
   const view = render(<App />)
   expect(await screen.findByRole("textbox", { name: "Search library" })).toHaveValue("Ada")
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(
@@ -1408,6 +1417,31 @@ test("clears import warnings on disconnect without reloading the saved snapshot"
   expect(await screen.findByText("Kobo disconnected")).toBeVisible()
   expect(screen.queryByText("Using the previous snapshot")).not.toBeInTheDocument()
   expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+})
+
+test("moves to the last library page when results shrink", async () => {
+  window.history.replaceState(null, "", "/?page=3")
+  const fallback = fetch
+  const requestedPages: number[] = []
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes("/api/books?")) {
+      const page = Number(new URL(url, window.location.origin).searchParams.get("page"))
+      requestedPages.push(page)
+      return Response.json({
+        items: page === 2 ? dashboard.continue_reading : [],
+        page: Math.min(page, 2), page_size: 20, total: 21, pages: 2,
+        filter_options: filterOptions, source_summary: dashboard.source_summary,
+      })
+    }
+    return fallback(input, init)
+  }))
+
+  render(<App />)
+  expect(await screen.findByText("Page 2 of 2")).toBeVisible()
+  expect(window.location.search).toBe("?page=2")
+  expect(requestedPages).toEqual([3, 2])
+  expect(screen.getByRole("button", { name: "Open Current Book" })).toBeVisible()
 })
 
 test.each([true, false])("shows startup import progress with saved snapshot available=%s", async (saved) => {
