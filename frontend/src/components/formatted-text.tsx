@@ -11,14 +11,14 @@ const blockedTags = new Set([
 
 function safeHref(value: string): string | undefined {
   const href = value.trim()
-  if (
-    (href.startsWith("/") && !href.startsWith("//")) ||
-    href.startsWith("#") ||
-    /^(https?:|mailto:)/i.test(href)
-  ) {
-    return href
+  if (href.startsWith("/") || href.startsWith("#")) {
+    try {
+      if (new URL(href, window.location.href).origin === window.location.origin) return href
+    } catch {
+      return undefined
+    }
   }
-  return undefined
+  return /^(https?:\/\/|mailto:)/i.test(href) ? href : undefined
 }
 
 function renderNode(node: Node, key: string): ReactNode {
