@@ -379,7 +379,15 @@ export function OverviewPage({
 
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <CardTitle>Reading duration</CardTitle>
+          <div className="grid gap-1">
+            <CardTitle>Reading duration</CardTitle>
+            <CardDescription>
+              Estimated from retained telemetry, including books no longer in the library.
+              {dashboard.reading_duration.unallocated_seconds > 0 && (
+                <> {formatDuration(dashboard.reading_duration.unallocated_seconds)} cannot be assigned reliably to dates.</>
+              )}
+            </CardDescription>
+          </div>
           <CardAction className="flex flex-wrap justify-end gap-2 max-sm:col-span-full max-sm:col-start-1 max-sm:row-start-3">
             <div
               role="group"

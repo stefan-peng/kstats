@@ -203,7 +203,7 @@ export function LibrarySection({
       }),
       helper.accessor("remaining_seconds", {
         id: "remaining_time",
-        header: "Time remaining",
+        header: "Remaining (Kobo est.)",
         cell: ({ getValue, row }) =>
           row.original.status === "reading" && getValue() > 0
             ? formatDuration(getValue())

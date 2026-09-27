@@ -236,7 +236,7 @@ def create_fixture_database(path: Path) -> None:
                     {
                         "ExtraDataReadingSeconds": 1800,
                         "ExtraDataReadingSessions": 1,
-                        "eventTimestamps": [1781652600, 1781656200],
+                        "eventTimestamps": [1781653500, 1781655300],
                     }
                 ),
             ),
@@ -250,7 +250,7 @@ def create_fixture_database(path: Path) -> None:
                     {
                         "ExtraDataReadingSeconds": 3600,
                         "ExtraDataReadingSessions": 1,
-                        "eventTimestamps": [1781652600, 1781656200],
+                        "eventTimestamps": [1781653500, 1781655300],
                     }
                 ),
             ),

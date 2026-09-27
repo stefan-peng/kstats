@@ -1,5 +1,11 @@
 # Kobo Native Reader Reading Statistics Analysis
 
+The [September 2026 accuracy audit](docs/data-accuracy-audit.md) supersedes the
+historical timeline assumptions below: aggregate counters can be stale relative
+to their timestamps. Explicit recent durations also exist in
+`AnalyticsEvents.LeaveContent.Metrics.SecondsRead`; they must not be added to
+overlapping aggregate counters.
+
 Your plugged-in Kobo stores reading telemetry and metadata locally in `.kobo/KoboReader.sqlite` on the mounted device. By querying this database, we can extract book-level metrics, aggregated session telemetry, word lookup history, highlights, and annotations.
 
 > [!NOTE]
@@ -23,7 +29,7 @@ The `content` table contains records for all books and their individual chapters
 | `TimesStartedReading` | `INTEGER` | Number of times the book was opened/started |
 | `DateLastRead` | `TEXT` | ISO-8601 timestamp of when the book was last read |
 | `LastTimeStartedReading` | `TEXT` | Start time of the last reading session |
-| `LastTimeFinishedReading`| `TEXT` | End time of the last reading session |
+| `LastTimeFinishedReading`| `TEXT` | Last recorded book-completion timestamp; not the end of each session |
 | `WordCount` | `INTEGER` | Total words in the book (often `-1` for sideloaded EPUBs, but populated for Kepubs) |
 
 ---

@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
 import {
   formatDate,
+  formatDateTime,
   formatDuration,
   formatNumber,
 } from "@/lib/format"
@@ -196,17 +197,46 @@ export function BookDetailDialog({
                 </div>
               </div>
 
+              {book.recent_sessions.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Kobo sessions</CardTitle>
+                    <CardDescription>
+                      Durations logged when leaving a book; recent records only.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="grid gap-3">
+                      {book.recent_sessions.map((session) => (
+                        <div key={session.id} className="flex flex-wrap justify-between gap-2 text-sm">
+                          <dt>{formatDateTime(session.ended_at)}</dt>
+                          <dd>
+                            {formatNumber(session.seconds)}s
+                            {session.pages_turned !== null && ` · ${formatNumber(session.pages_turned)} page turns`}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
-                  <CardTitle>Reading sessions</CardTitle>
+                  <CardTitle>Recorded reading activity</CardTitle>
                   <CardDescription>
-                    Estimated daily distribution from Kobo session telemetry
+                    {formatDuration(book.reading_duration.source_seconds)} in retained telemetry; daily split estimated.
+                    {book.reading_duration.unallocated_seconds > 0 && (
+                      <> {formatDuration(book.reading_duration.unallocated_seconds)} cannot be assigned reliably to dates.</>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {readingDurationSeries.length === 0 ? (
                     <p className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-                      No detailed reading telemetry is available for this book.
+                      {book.reading_duration.unallocated_seconds > 0
+                        ? "Daily reading time is unavailable for this telemetry."
+                        : "No detailed reading telemetry is available for this book."}
                     </p>
                   ) : (
                     <ChartContainer
@@ -283,7 +313,7 @@ export function BookDetailDialog({
                     <div className="flex items-start gap-3">
                       <Timer className="mt-0.5 size-5 text-primary" />
                       <div>
-                        <CardDescription>Estimated time remaining</CardDescription>
+                        <CardDescription>Kobo time remaining estimate</CardDescription>
                         <CardTitle className="mt-1 font-serif text-2xl">
                           {formatDuration(book.remaining_seconds)}
                         </CardTitle>

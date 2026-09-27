@@ -91,6 +91,7 @@ function bookDetail(overrides = {}) {
     ...dashboard.continue_reading[0],
     bookmarks: [],
     dictionary_lookups: [],
+    recent_sessions: [],
     reading_duration: {
       estimated: true,
       coverage_start: "2026-06-16",
@@ -753,7 +754,7 @@ test("supports library search and sortable headers on the dashboard", async () =
   })
 
   const remainingHeader = screen.getByRole("columnheader", {
-    name: "Time remaining",
+    name: "Remaining (Kobo est.)",
   })
   await user.click(within(remainingHeader).getByRole("button"))
   await waitFor(() => {
@@ -895,11 +896,12 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).queryByText("Summary")).not.toBeInTheDocument()
   expect(within(dialog).queryByText("Snapshot file")).not.toBeInTheDocument()
   expect(within(dialog).queryByText("Times opened")).not.toBeInTheDocument()
-  expect(within(dialog).getByText("Estimated time remaining")).toBeVisible()
+  expect(within(dialog).getByText("Kobo time remaining estimate")).toBeVisible()
   expect(within(dialog).getByText("4h 19m")).toBeVisible()
   expect(within(dialog).getByText("1h 7m")).toBeVisible()
   expect(within(dialog).getByText("3h 11m")).toBeVisible()
-  expect(within(dialog).getByText("Reading sessions")).toBeVisible()
+  expect(within(dialog).getByText("Recorded reading activity")).toBeVisible()
+  expect(within(dialog).getByText("30m in retained telemetry; daily split estimated.")).toBeVisible()
   expect(
     within(dialog).getByRole("img", { name: "Estimated reading time by day" }),
   ).toBeVisible()
@@ -1083,7 +1085,7 @@ test("suppresses unavailable remaining time", async () => {
   await user.click(row)
   const dialog = await screen.findByRole("dialog")
   expect(
-    within(dialog).queryByText("Estimated time remaining"),
+    within(dialog).queryByText("Kobo time remaining estimate"),
   ).not.toBeInTheDocument()
 })
 
@@ -1131,7 +1133,7 @@ test("shows unavailable chapter estimate as a dash", async () => {
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
   await user.click(row)
   const dialog = await screen.findByRole("dialog")
-  expect(within(dialog).getByText("Estimated time remaining")).toBeVisible()
+  expect(within(dialog).getByText("Kobo time remaining estimate")).toBeVisible()
   const chapterLabel = within(dialog).getByText("Current chapter")
   expect(chapterLabel.nextElementSibling).toHaveTextContent("—")
   expect(within(dialog).queryByText("0s")).not.toBeInTheDocument()
@@ -1469,4 +1471,40 @@ test.each([true, false])("shows startup import progress with saved snapshot avai
   await act(async () => { window.dispatchEvent(new Event("focus")) })
   expect(await screen.findByRole("button", { name: "Refresh from Kobo" })).toBeEnabled()
   expect(screen.getByRole("heading", { name: "Reading overview" })).toBeVisible()
+})
+
+test("shows explicit recent sessions separately from undated aggregate telemetry", async () => {
+  const user = userEvent.setup()
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    if (String(input).includes("/api/book?")) {
+      return Response.json(bookDetail({
+        recent_sessions: [{
+          id: "recent-count-zero",
+          ended_at: "2026-09-27T03:22:36+00:00",
+          seconds: 154,
+          pages_turned: 9,
+        }],
+        reading_duration: {
+          estimated: true,
+          coverage_start: null,
+          coverage_end: null,
+          source_seconds: 9,
+          allocated_seconds: 0,
+          unallocated_seconds: 9,
+          skipped_rows: 0,
+          daily: [],
+        },
+      }))
+    }
+    return originalFetch(input, init)
+  })
+  render(<App />)
+  await user.click(await screen.findByRole("row", { name: /Current Book Ada Reader/ }))
+  const dialog = await screen.findByRole("dialog")
+  expect(within(dialog).getByText("Recent Kobo sessions")).toBeVisible()
+  expect(within(dialog).getByText("154s · 9 page turns")).toBeVisible()
+  expect(within(dialog).getByText(/9s cannot be assigned reliably to dates/)).toBeVisible()
+  expect(within(dialog).getByText("Daily reading time is unavailable for this telemetry.")).toBeVisible()
+  expect(within(dialog).queryByRole("img", { name: "Estimated reading time by day" })).not.toBeInTheDocument()
 })

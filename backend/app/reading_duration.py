@@ -5,8 +5,15 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 
-def _session_groups(timestamps: list[int], sessions: int) -> list[list[int]]:
-    ordered = sorted(timestamps)
+# This is a distribution heuristic, not a recovered session boundary. Event
+# counters can lag behind timestamps (including later book-open interactions).
+MAX_INTERACTION_GAP_SECONDS = 30 * 60
+
+
+def _session_groups(
+    timestamps: list[int], sessions: int, seconds: int
+) -> list[list[int]]:
+    ordered = sorted(set(timestamps))
     if not ordered:
         return []
 
@@ -16,11 +23,20 @@ def _session_groups(timestamps: list[int], sessions: int) -> list[list[int]]:
         for index in range(len(ordered) - 1)
     ]
     split_at = {
+        index for gap, index in gaps
+        if gap > min(seconds, MAX_INTERACTION_GAP_SECONDS)
+    }
+    if len(split_at) > split_count:
+        # More separate activity clusters than the duration's session counter
+        # supports: the timestamps and counters may describe different activity.
+        # Preserve the duration, but do not invent its date distribution.
+        return []
+    split_at.update({
         index
         for _, index in sorted(gaps, key=lambda item: (-item[0], item[1]))[
             :split_count
         ]
-    }
+    })
 
     groups: list[list[int]] = []
     start = 0
@@ -57,10 +73,10 @@ def _add_interval_weights(
 
 
 def _date_weights(
-    timestamps: list[int], sessions: int, timezone: ZoneInfo
+    timestamps: list[int], sessions: int, seconds: int, timezone: ZoneInfo
 ) -> dict[str, float]:
     weights: dict[str, float] = defaultdict(float)
-    for group in _session_groups(timestamps, sessions):
+    for group in _session_groups(timestamps, sessions, seconds):
         if len(group) == 1:
             date = datetime.fromtimestamp(group[0], timezone).date().isoformat()
             weights[date] += 1
@@ -98,14 +114,15 @@ def aggregate_reading_duration(
 
     for event in events:
         seconds = event["seconds"]
+        source_seconds += seconds
         try:
             weights = _date_weights(
-                event["timestamps"], event["sessions"], timezone
+                event["timestamps"], event["sessions"], seconds, timezone
             )
         except (OverflowError, OSError, ValueError):
             skipped_rows += 1
+            unallocated_seconds += seconds
             continue
-        source_seconds += seconds
         allocation = _allocate_seconds(seconds, weights)
         if not allocation and seconds:
             unallocated_seconds += seconds

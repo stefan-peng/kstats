@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import threading
@@ -12,7 +13,7 @@ from backend.app.importer import ImportError as KoboImportError
 from backend.app.importer import import_database
 from backend.app.main import create_app
 from backend.app.source_processing import DERIVED_SCHEMA_VERSION
-from backend.tests.conftest import create_fixture_database
+from backend.tests.conftest import create_fixture_database, event_payload
 
 
 def insert_book(
@@ -86,6 +87,31 @@ def test_dashboard_uses_requested_timezone(client):
     assert response.json()["reading_duration"]["daily"] == [
         {"date": "2026-06-16", "seconds": 1800}
     ]
+
+
+def test_stale_telemetry_counter_has_same_bounded_dates_in_dashboard_and_book(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        content_id = connection.execute(
+            "SELECT content_id FROM kstats_books WHERE read_status = 1"
+        ).fetchone()[0]
+        connection.execute("DELETE FROM Event WHERE EventType = 3")
+        connection.execute(
+            "INSERT INTO Event (ContentID, EventType, ExtraData) VALUES (?, 3, ?)",
+            (content_id, event_payload({
+                "ExtraDataReadingSeconds": 9,
+                "ExtraDataReadingSessions": 1,
+                "eventTimestamps": [1787624886, 1787624888, 1790479202],
+            })),
+        )
+    params = {"timezone": "America/New_York"}
+    dashboard = client.get("/api/dashboard", params=params).json()["reading_duration"]
+    detail = client.get(
+        "/api/book", params={**params, "content_id": content_id}
+    ).json()["reading_duration"]
+    assert detail == dashboard
+    assert detail["daily"] == []
+    assert detail["source_seconds"] == detail["unallocated_seconds"] == 9
+    assert detail["allocated_seconds"] == 0
 
 
 def test_dashboard_rejects_unknown_timezone(client):
@@ -794,6 +820,7 @@ def test_frontend_route_rejects_encoded_path_traversal(client):
 def test_book_detail_includes_visible_highlights(client):
     response = client.get("/api/book", params={"content_id": "book-reading"})
     payload = response.json()
+    assert payload["recent_sessions"] == []
     assert payload["word_count"] == 80000
     assert payload["bookmark_count"] == 1
     assert payload["cover_url"] is None
@@ -1170,3 +1197,34 @@ def test_macos_copy_recovers_hot_rollback_journal_locally(tmp_path, monkeypatch)
     with sqlite3.connect(destination) as connection:
         assert connection.execute('SELECT value FROM example').fetchone() == ('committed',)
     assert (source.read_bytes(), journal.read_bytes()) == before
+
+
+def test_book_reads_explicit_recent_sessions_without_double_counting(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute(
+            "CREATE TABLE AnalyticsEvents (Id TEXT, Type TEXT, Timestamp TEXT, "
+            "Attributes TEXT, Metrics TEXT)"
+        )
+        rows = [
+            ('valid', 'LeaveContent', '2026-09-27T03:22:36Z',
+             json.dumps({'volumeid': 'book-reading'}),
+             json.dumps({'SecondsRead': 154, 'PagesTurned': 9})),
+            ('other-book', 'LeaveContent', '2026-09-27T03:22:36Z',
+             json.dumps({'volumeid': 'book-finished'}),
+             json.dumps({'SecondsRead': 500})),
+            ('malformed', 'LeaveContent', '2026-09-27T03:22:36Z', '{', '{}'),
+            ('invalid-seconds', 'LeaveContent', '2026-09-27T03:22:36Z',
+             json.dumps({'volumeid': 'book-reading'}), json.dumps({'SecondsRead': True})),
+            ('invalid-date', 'LeaveContent', 'not-a-date',
+             json.dumps({'volumeid': 'book-reading'}), json.dumps({'SecondsRead': 1})),
+            ('open', 'OpenContent', '2026-09-27T03:22:36Z',
+             json.dumps({'volumeid': 'book-reading'}), json.dumps({'SecondsRead': 154})),
+        ]
+        connection.executemany('INSERT INTO AnalyticsEvents VALUES (?, ?, ?, ?, ?)', rows)
+    detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
+    assert detail['recent_sessions'] == [{
+        'id': 'valid', 'ended_at': '2026-09-27T03:22:36+00:00',
+        'seconds': 154, 'pages_turned': 9,
+    }]
+    assert detail['reading_duration']['source_seconds'] == 1800
+    assert detail['reading_seconds'] == 3661

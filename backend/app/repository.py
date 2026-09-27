@@ -1,7 +1,9 @@
+import json
 import math
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -364,6 +366,7 @@ class Repository:
             ).fetchone()
             if row is None:
                 return None
+            recent_sessions = self._recent_sessions(connection, content_id)
             bookmark_rows = connection.execute(
                 """
                 SELECT BookmarkID AS id, Text AS text, Annotation AS annotation,
@@ -450,4 +453,43 @@ class Repository:
             ),
         )
         book["reading_duration"] = reading_duration
+        book["recent_sessions"] = recent_sessions
         return book
+
+    @staticmethod
+    def _recent_sessions(connection: sqlite3.Connection, content_id: str) -> list[dict[str, Any]]:
+        """Read explicit LeaveContent durations without adding them to Event totals."""
+        if not connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'AnalyticsEvents'"
+        ).fetchone():
+            return []
+        sessions = []
+        for row in connection.execute(
+            "SELECT Id, Timestamp, Attributes, Metrics FROM AnalyticsEvents "
+            "WHERE Type = 'LeaveContent' ORDER BY Timestamp DESC, Id"
+        ):
+            try:
+                attributes = json.loads(row["Attributes"])
+                metrics = json.loads(row["Metrics"])
+                if not isinstance(attributes, dict) or not isinstance(metrics, dict):
+                    continue
+                if attributes.get("volumeid") != content_id:
+                    continue
+                timestamp = datetime.fromisoformat(row["Timestamp"].replace("Z", "+00:00"))
+                if timestamp.tzinfo is None:
+                    continue
+            except (TypeError, ValueError, AttributeError):
+                continue
+            seconds = metrics.get("SecondsRead")
+            if type(seconds) is not int or seconds <= 0:
+                continue
+            pages = metrics.get("PagesTurned")
+            sessions.append({
+                "id": row["Id"],
+                "ended_at": timestamp.isoformat(),
+                "seconds": seconds,
+                "pages_turned": pages if type(pages) is int and pages >= 0 else None,
+            })
+            if len(sessions) == 20:
+                break
+        return sessions

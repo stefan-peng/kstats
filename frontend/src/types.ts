@@ -60,6 +60,12 @@ export interface DictionaryLookup {
 }
 
 export interface BookDetail extends Book {
+  recent_sessions: Array<{
+    id: string
+    ended_at: string
+    seconds: number
+    pages_turned: number | null
+  }>
   bookmarks: Bookmark[]
   dictionary_lookups: DictionaryLookup[]
   reading_duration: DashboardData["reading_duration"]
