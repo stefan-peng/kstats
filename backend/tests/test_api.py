@@ -1228,3 +1228,68 @@ def test_book_reads_explicit_recent_sessions_without_double_counting(client, set
     }]
     assert detail['reading_duration']['source_seconds'] == 1800
     assert detail['reading_seconds'] == 3661
+
+
+def test_session_remaining_time_is_consistent_across_views_sorting_and_pagination(client, settings):
+    insert_book(settings.snapshot_db, content_id='kobo-fallback', book_title='Fallback Book',
+                title='Fallback Book', downloaded=1)
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute("UPDATE content SET ReadStatus=1, ___PercentRead=50, RestOfBookEstimate=10000 WHERE ContentID='kobo-fallback'")
+        connection.executescript('''
+            CREATE TABLE AnalyticsEvents (Id TEXT PRIMARY KEY, Type TEXT, Timestamp TEXT, Attributes TEXT, Metrics TEXT);
+            UPDATE kstats_meta SET value=6 WHERE key='schema_version';
+        ''')
+        for event_id, kind, timestamp, progress, metrics in [
+            ('open', 'OpenContent', '2026-09-28T12:00:00Z', '42', {}),
+            ('leave', 'LeaveContent', '2026-09-28T12:04:00Z', '44', {'SecondsRead': 240, 'PagesTurned': 40}),
+        ]:
+            connection.execute('INSERT INTO AnalyticsEvents VALUES (?,?,?,?,?)',
+                               (event_id, kind, timestamp, json.dumps({'volumeid': 'book-reading', 'progress': progress}), json.dumps(metrics)))
+
+    detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
+    assert detail['remaining_seconds'] == 6960
+    assert detail['remaining_estimate_source'] == 'sessions'
+    assert detail['remaining_estimate_sessions'] == 1
+    assert detail['remaining_estimate_reading_seconds'] == 240
+    assert detail['remaining_estimate_progress'] == 2
+    assert detail['current_chapter_estimate_seconds'] == 4060
+    assert detail['rest_of_book_estimate_seconds'] == 11507
+
+    dashboard = client.get('/api/dashboard').json()
+    for collection in ['continue_reading', 'top_books']:
+        book = next(item for item in dashboard[collection] if item['content_id'] == 'book-reading')
+        assert book['remaining_seconds'] == detail['remaining_seconds']
+        assert book['remaining_estimate_source'] == 'sessions'
+
+    params = {'status': 'reading', 'sort': 'remaining_time', 'direction': 'desc', 'page_size': 1}
+    first = client.get('/api/books', params=params).json()['items'][0]
+    second = client.get('/api/books', params={**params, 'page': 2}).json()['items'][0]
+    assert first['content_id'] == 'kobo-fallback'
+    assert first['remaining_seconds'] == 10000
+    assert first['remaining_estimate_source'] == 'kobo'
+    assert first['remaining_estimate_sessions'] == 0
+    assert second['content_id'] == 'book-reading'
+    assert second['remaining_seconds'] == detail['remaining_seconds']
+    ascending = client.get('/api/books', params={**params, 'direction': 'asc'}).json()['items'][0]
+    assert ascending['content_id'] == 'book-reading'
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        assert connection.execute("SELECT CurrentChapterEstimate + RestOfBookEstimate FROM content WHERE ContentID='book-reading'").fetchone()[0] == 15567
+        assert connection.execute("SELECT value FROM kstats_meta WHERE key='schema_version'").fetchone()[0] == DERIVED_SCHEMA_VERSION
+
+
+def test_rejected_session_falls_back_to_kobo(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executescript('''
+            CREATE TABLE AnalyticsEvents (Id TEXT PRIMARY KEY, Type TEXT, Timestamp TEXT, Attributes TEXT, Metrics TEXT);
+            UPDATE kstats_meta SET value=6 WHERE key='schema_version';
+        ''')
+        for event_id, kind, timestamp, progress, metrics in [
+            ('open', 'OpenContent', '2026-09-28T12:00:00Z', '0', {}),
+            ('leave', 'LeaveContent', '2026-09-28T12:04:00Z', '17', {'SecondsRead': 240, 'PagesTurned': 40}),
+        ]:
+            connection.execute('INSERT INTO AnalyticsEvents VALUES (?,?,?,?,?)',
+                               (event_id, kind, timestamp, json.dumps({'volumeid': 'book-reading', 'progress': progress}), json.dumps(metrics)))
+    detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
+    assert detail['remaining_seconds'] == 15567
+    assert detail['remaining_estimate_source'] == 'kobo'
+    assert detail['remaining_estimate_sessions'] == 0

@@ -53,6 +53,10 @@ still have activity on those same dates.
 
 ## Remaining time
 
+**September 30 update:** The behavior below describes the September 26 audit.
+Remaining time now prefers a rate from retained paired reading sessions and
+falls back to Kobo when none is usable. See [the current calculation](remaining-time.md).
+
 The app sums nonnegative `CurrentChapterEstimate` and `RestOfBookEstimate` for
 in-progress books. It does not calculate reading speed. Count Zero stores
 0 + 23,913 seconds, displayed as 6h 38m. This is the exact stored estimate after

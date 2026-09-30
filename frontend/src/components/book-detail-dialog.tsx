@@ -313,31 +313,42 @@ export function BookDetailDialog({
                     <div className="flex items-start gap-3">
                       <Timer className="mt-0.5 size-5 text-primary" />
                       <div>
-                        <CardDescription>Kobo time remaining estimate</CardDescription>
+                        <CardDescription>{book.remaining_estimate_source === "sessions"
+                          ? "Time remaining from reading sessions"
+                          : "Kobo time remaining estimate"}</CardDescription>
                         <CardTitle className="mt-1 font-serif text-2xl">
                           {formatDuration(book.remaining_seconds)}
                         </CardTitle>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                      <p className="text-muted-foreground">Current chapter</p>
-                      <p className="font-medium">
-                        {book.current_chapter_estimate_seconds > 0
-                          ? formatDuration(book.current_chapter_estimate_seconds)
-                          : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">After this chapter</p>
-                      <p className="font-medium">
-                        {book.rest_of_book_estimate_seconds > 0
-                          ? formatDuration(book.rest_of_book_estimate_seconds)
-                          : "—"}
-                      </p>
-                    </div>
-                  </CardContent>
+                  {book.remaining_estimate_source === "sessions" ? (
+                    <CardContent className="text-sm text-muted-foreground">
+                      <p>{book.remaining_estimate_sessions} {book.remaining_estimate_sessions === 1 ? "session" : "sessions"} · {formatDuration(book.remaining_estimate_reading_seconds)} recorded · {book.remaining_estimate_progress}% progress.</p>
+                      {book.remaining_estimate_sessions === 1 && (
+                        <p>Based on one session; the estimate may change substantially with more reading.</p>
+                      )}
+                    </CardContent>
+                  ) : (
+                    <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                      <div>
+                        <p className="text-muted-foreground">Current chapter</p>
+                        <p className="font-medium">
+                          {book.current_chapter_estimate_seconds > 0
+                            ? formatDuration(book.current_chapter_estimate_seconds)
+                            : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">After this chapter</p>
+                        <p className="font-medium">
+                          {book.rest_of_book_estimate_seconds > 0
+                            ? formatDuration(book.rest_of_book_estimate_seconds)
+                            : "—"}
+                        </p>
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
               ) : null}
 

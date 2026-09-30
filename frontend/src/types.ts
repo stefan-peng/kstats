@@ -30,6 +30,10 @@ export interface Book {
   current_chapter_estimate_seconds: number
   rest_of_book_estimate_seconds: number
   remaining_seconds: number
+  remaining_estimate_source: "sessions" | "kobo" | null
+  remaining_estimate_sessions: number
+  remaining_estimate_reading_seconds: number
+  remaining_estimate_progress: number
   downloaded: boolean
   word_count: number | null
   series: string | null

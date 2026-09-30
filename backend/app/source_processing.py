@@ -1,12 +1,14 @@
 import sqlite3
 from typing import Literal
 
+from .remaining_estimate import apply_remaining_estimates
+
 BOOK_MIME_TYPES = (
     "application/x-kobo-epub+zip",
     "application/epub+zip",
     "application/pdf",
 )
-DERIVED_SCHEMA_VERSION = 6
+DERIVED_SCHEMA_VERSION = 7
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
@@ -134,6 +136,10 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
                 current_chapter_estimate_seconds INTEGER,
                 rest_of_book_estimate_seconds INTEGER,
                 remaining_seconds INTEGER,
+                remaining_estimate_source TEXT,
+                remaining_estimate_sessions INTEGER,
+                remaining_estimate_reading_seconds INTEGER,
+                remaining_estimate_progress REAL,
                 downloaded INTEGER,
                 word_count INTEGER,
                 series TEXT,
@@ -384,6 +390,10 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
             state.rest_of_book_estimate_seconds,
             state.current_chapter_estimate_seconds + state.rest_of_book_estimate_seconds
                 AS remaining_seconds,
+            NULL AS remaining_estimate_source,
+            0 AS remaining_estimate_sessions,
+            0 AS remaining_estimate_reading_seconds,
+            0.0 AS remaining_estimate_progress,
             CASE WHEN lower(CAST(content.IsDownloaded AS TEXT)) IN ('1', 'true') THEN 1 ELSE 0 END AS downloaded,
             CASE WHEN COALESCE(content.WordCount, -1) > 0 THEN content.WordCount ELSE NULL END AS word_count,
             NULLIF(content.Series, '') AS series,
@@ -426,6 +436,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         CREATE INDEX kstats_books_bookmark_idx ON kstats_books(bookmark_count);
         """
     )
+    apply_remaining_estimates(connection)
     summary = connection.execute(
         f"""
         SELECT

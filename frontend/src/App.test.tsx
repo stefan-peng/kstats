@@ -43,6 +43,10 @@ const dashboard = {
       current_chapter_estimate_seconds: 4060,
       rest_of_book_estimate_seconds: 11507,
       remaining_seconds: 15567,
+      remaining_estimate_source: "kobo",
+      remaining_estimate_sessions: 0,
+      remaining_estimate_reading_seconds: 0,
+      remaining_estimate_progress: 0,
       downloaded: true,
       word_count: 80000,
       series: null,
@@ -70,6 +74,10 @@ const dashboard = {
       current_chapter_estimate_seconds: 0,
       rest_of_book_estimate_seconds: 0,
       remaining_seconds: 0,
+      remaining_estimate_source: null,
+      remaining_estimate_sessions: 0,
+      remaining_estimate_reading_seconds: 0,
+      remaining_estimate_progress: 0,
       downloaded: true,
       word_count: null,
       series: null,
@@ -754,7 +762,7 @@ test("supports library search and sortable headers on the dashboard", async () =
   })
 
   const remainingHeader = screen.getByRole("columnheader", {
-    name: "Remaining (Kobo est.)",
+    name: "Remaining (est.)",
   })
   await user.click(within(remainingHeader).getByRole("button"))
   await waitFor(() => {
@@ -1507,4 +1515,38 @@ test("shows explicit recent sessions separately from undated aggregate telemetry
   expect(within(dialog).getByText(/9s cannot be assigned reliably to dates/)).toBeVisible()
   expect(within(dialog).getByText("Daily reading time is unavailable for this telemetry.")).toBeVisible()
   expect(within(dialog).queryByRole("img", { name: "Estimated reading time by day" })).not.toBeInTheDocument()
+})
+
+test("uses session remaining time by default and identifies a single sample", async () => {
+  const sessionBook = {
+    ...dashboard.continue_reading[0],
+    remaining_seconds: 7200,
+    remaining_estimate_source: "sessions",
+    remaining_estimate_sessions: 1,
+    remaining_estimate_reading_seconds: 240,
+    remaining_estimate_progress: 2,
+  }
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes("/api/book?")) return Response.json(bookDetail(sessionBook))
+    if (url.includes("/api/books")) return Response.json({
+      items: [sessionBook], page: 1, page_size: 20, total: 1, pages: 1,
+      filter_options: filterOptions, source_summary: dashboard.source_summary,
+    })
+    if (url.includes("/api/dashboard")) return Response.json({ ...dashboard, continue_reading: [sessionBook] })
+    return Response.json({ connected: false, snapshot_available: true, imported_at: null, source: null })
+  }))
+  const user = userEvent.setup()
+  render(<App />)
+  const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
+  expect(within(row).getByText("2h")).toBeVisible()
+  expect(within(row).queryByText("4h 19m")).not.toBeInTheDocument()
+  await user.click(within(row).getByRole("button", { name: "Open Current Book" }))
+  const dialog = await screen.findByRole("dialog")
+  expect(await within(dialog).findByText("Time remaining from reading sessions")).toBeVisible()
+  expect(within(dialog).getByText("2h")).toBeVisible()
+  expect(within(dialog).getByText("1 session · 4m recorded · 2% progress.")).toBeVisible()
+  expect(within(dialog).getByText(/Based on one session/)).toBeVisible()
+  expect(within(dialog).queryByText("Current chapter")).not.toBeInTheDocument()
+  expect(within(dialog).queryByText("Kobo time remaining estimate")).not.toBeInTheDocument()
 })

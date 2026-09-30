@@ -1,0 +1,9 @@
+# Estimated time remaining
+
+Remaining time uses a reading rate computed from retained, paired OpenContent/LeaveContent sessions. One usable session with positive progress is enough. When no usable estimate is available, the app falls back to Kobo's nonnegative current-chapter plus rest-of-book estimate. Missing values display as a dash. Book details identify the source and show sample coverage for a session estimate. Chapter estimates are shown only for the Kobo fallback.
+
+Session matching uses volumeid, or an exact title/author match only when unique in the canonical library. A sample requires at least 120 reported seconds, 10 page turns, positive progress no greater than 10 percentage points, and elapsed time within 10 seconds or 10% of reported seconds. Rates from the latest ten candidate sessions must be within a factor of three of their median in log space. This treats multiplicative differences symmetrically, including when there are only two conflicting samples. Remaining seconds equal summed reported seconds divided by summed progress, multiplied by remaining percentage. IdleTime is not separately subtracted.
+
+Whole-percent rounding, navigation that passes the checks, telemetry retention and changing speed can affect the result. These filters are heuristics, not validated Kobo specifications or confidence bounds. A single session cannot be checked against other session speeds; the detail view identifies that limitation. Lifetime reading time divided by current progress is never used as a fallback. Events are not archived across imports.
+
+The chosen value and its source are stored only in the app's rebuilt derived book table, so dashboard, library, details and sorting use the same estimate. The source Kobo content and telemetry are unchanged. Existing snapshots rebuild automatically when the derived schema changes.
