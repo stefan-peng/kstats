@@ -184,7 +184,7 @@ export function BookDetailDialog({
                 <div className="flex items-start gap-3 rounded-lg border p-3">
                   <Clock3 className="mt-0.5 size-4 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Reading time</p>
+                    <p className="text-xs text-muted-foreground">{book.reading_time_source === "events" ? "Recorded reading time" : "Reading time"}</p>
                     <p className="font-medium">{formatDuration(book.reading_seconds)}</p>
                   </div>
                 </div>
@@ -314,20 +314,19 @@ export function BookDetailDialog({
                       <Timer className="mt-0.5 size-5 text-primary" />
                       <div>
                         <CardDescription>{book.remaining_estimate_source === "sessions"
-                          ? "Time remaining from reading sessions"
-                          : "Kobo time remaining estimate"}</CardDescription>
+                          ? "Time remaining · sessions"
+                          : book.remaining_estimate_source === "observations"
+                            ? "Time remaining · reading history"
+                            : "Time remaining · Kobo"}</CardDescription>
                         <CardTitle className="mt-1 font-serif text-2xl">
                           {formatDuration(book.remaining_seconds)}
                         </CardTitle>
                       </div>
                     </div>
                   </CardHeader>
-                  {book.remaining_estimate_source === "sessions" ? (
+                  {book.remaining_estimate_source === "sessions" || book.remaining_estimate_source === "observations" ? (
                     <CardContent className="text-sm text-muted-foreground">
-                      <p>{book.remaining_estimate_sessions} {book.remaining_estimate_sessions === 1 ? "session" : "sessions"} · {formatDuration(book.remaining_estimate_reading_seconds)} recorded · {book.remaining_estimate_progress}% progress.</p>
-                      {book.remaining_estimate_sessions === 1 && (
-                        <p>Based on one session; the estimate may change substantially with more reading.</p>
-                      )}
+                      <p>{book.remaining_estimate_sessions} {book.remaining_estimate_source === "observations" ? (book.remaining_estimate_sessions === 1 ? "reading interval" : "reading intervals") : (book.remaining_estimate_sessions === 1 ? "session" : "sessions")} · {formatDuration(book.remaining_estimate_reading_seconds)} recorded · {book.remaining_estimate_progress}% progress.</p>
                     </CardContent>
                   ) : (
                     <CardContent className="grid gap-3 text-sm sm:grid-cols-2">

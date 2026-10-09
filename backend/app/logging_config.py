@@ -57,6 +57,7 @@ LOGGING_CONFIG: dict[str, Any] = {
         },
     },
     "loggers": {
+        "watchfiles": {"level": "WARNING"},
         "uvicorn": {
             "handlers": ["rich"],
             "level": "INFO",

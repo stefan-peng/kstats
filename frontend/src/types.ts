@@ -24,13 +24,14 @@ export interface Book {
   author: string
   status: ReadingStatus
   reading_seconds: number
+  reading_time_source?: "kobo" | "events"
   percent_read: number
   date_last_read: string | null
   finished_at: string | null
   current_chapter_estimate_seconds: number
   rest_of_book_estimate_seconds: number
   remaining_seconds: number
-  remaining_estimate_source: "sessions" | "kobo" | null
+  remaining_estimate_source: "sessions" | "observations" | "kobo" | null
   remaining_estimate_sessions: number
   remaining_estimate_reading_seconds: number
   remaining_estimate_progress: number

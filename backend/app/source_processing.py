@@ -2,13 +2,14 @@ import sqlite3
 from typing import Literal
 
 from .remaining_estimate import apply_remaining_estimates
+from .reading_history import update_reading_history
 
 BOOK_MIME_TYPES = (
     "application/x-kobo-epub+zip",
     "application/epub+zip",
     "application/pdf",
 )
-DERIVED_SCHEMA_VERSION = 7
+DERIVED_SCHEMA_VERSION = 8
 
 SourceType = Literal["kobo_store", "sideloaded", "custom_server", "catalog_noise"]
 
@@ -130,6 +131,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
                 author TEXT,
                 read_status INTEGER,
                 reading_seconds INTEGER,
+                reading_time_source TEXT,
                 percent_read INTEGER,
                 date_last_read TEXT,
                 finished_at TEXT,
@@ -383,6 +385,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
             COALESCE(NULLIF(content.Attribution, ''), 'Unknown author') AS author,
             state.read_status,
             MAX(MAX(COALESCE(content.TimeSpentReading, 0), 0), COALESCE(history.reading_seconds, 0)) AS reading_seconds,
+            'kobo' AS reading_time_source,
             state.percent_read,
             NULLIF(state.date_last_read, '') AS date_last_read,
             NULLIF(state.finished_at, '') AS finished_at,
@@ -436,6 +439,7 @@ def rebuild_derived_tables(connection: sqlite3.Connection) -> None:
         CREATE INDEX kstats_books_bookmark_idx ON kstats_books(bookmark_count);
         """
     )
+    update_reading_history(connection)
     apply_remaining_estimates(connection)
     summary = connection.execute(
         f"""

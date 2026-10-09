@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .config import Settings
+from .reading_history import carry_reading_history
 from .source_processing import derived_tables_current, rebuild_derived_tables
 
 
@@ -306,6 +307,7 @@ def _import_database_locked(settings: Settings) -> dict[str, str | bool | None]:
                     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'content'"
                 ).fetchone():
                     raise ImportError("Kobo database is not ready: missing content table")
+                carry_reading_history(destination_connection, settings.snapshot_db, str(source))
                 rebuild_derived_tables(destination_connection)
                 _write_metadata(destination_connection, source)
             retained_names = None

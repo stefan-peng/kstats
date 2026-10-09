@@ -904,7 +904,7 @@ test("opens book details from the embedded library", async () => {
   expect(within(dialog).queryByText("Summary")).not.toBeInTheDocument()
   expect(within(dialog).queryByText("Snapshot file")).not.toBeInTheDocument()
   expect(within(dialog).queryByText("Times opened")).not.toBeInTheDocument()
-  expect(within(dialog).getByText("Kobo time remaining estimate")).toBeVisible()
+  expect(within(dialog).getByText("Time remaining · Kobo")).toBeVisible()
   expect(within(dialog).getByText("4h 19m")).toBeVisible()
   expect(within(dialog).getByText("1h 7m")).toBeVisible()
   expect(within(dialog).getByText("3h 11m")).toBeVisible()
@@ -1093,7 +1093,7 @@ test("suppresses unavailable remaining time", async () => {
   await user.click(row)
   const dialog = await screen.findByRole("dialog")
   expect(
-    within(dialog).queryByText("Kobo time remaining estimate"),
+    within(dialog).queryByText("Time remaining · Kobo"),
   ).not.toBeInTheDocument()
 })
 
@@ -1141,7 +1141,7 @@ test("shows unavailable chapter estimate as a dash", async () => {
   const row = await screen.findByRole("row", { name: /Current Book Ada Reader/ })
   await user.click(row)
   const dialog = await screen.findByRole("dialog")
-  expect(within(dialog).getByText("Kobo time remaining estimate")).toBeVisible()
+  expect(within(dialog).getByText("Time remaining · Kobo")).toBeVisible()
   const chapterLabel = within(dialog).getByText("Current chapter")
   expect(chapterLabel.nextElementSibling).toHaveTextContent("—")
   expect(within(dialog).queryByText("0s")).not.toBeInTheDocument()
@@ -1517,11 +1517,15 @@ test("shows explicit recent sessions separately from undated aggregate telemetry
   expect(within(dialog).queryByRole("img", { name: "Estimated reading time by day" })).not.toBeInTheDocument()
 })
 
-test("uses session remaining time by default and identifies a single sample", async () => {
+test.each([
+  ["sessions", "Time remaining · sessions", "1 session"],
+  ["observations", "Time remaining · reading history", "1 reading interval"],
+])("uses %s remaining time and identifies a single sample", async (source, label, sample) => {
   const sessionBook = {
     ...dashboard.continue_reading[0],
     remaining_seconds: 7200,
-    remaining_estimate_source: "sessions",
+    remaining_estimate_source: source,
+    reading_time_source: "events",
     remaining_estimate_sessions: 1,
     remaining_estimate_reading_seconds: 240,
     remaining_estimate_progress: 2,
@@ -1543,10 +1547,10 @@ test("uses session remaining time by default and identifies a single sample", as
   expect(within(row).queryByText("4h 19m")).not.toBeInTheDocument()
   await user.click(within(row).getByRole("button", { name: "Open Current Book" }))
   const dialog = await screen.findByRole("dialog")
-  expect(await within(dialog).findByText("Time remaining from reading sessions")).toBeVisible()
+  expect(await within(dialog).findByText(label)).toBeVisible()
   expect(within(dialog).getByText("2h")).toBeVisible()
-  expect(within(dialog).getByText("1 session · 4m recorded · 2% progress.")).toBeVisible()
-  expect(within(dialog).getByText(/Based on one session/)).toBeVisible()
+  expect(within(dialog).getByText(`${sample} · 4m recorded · 2% progress.`)).toBeVisible()
+  expect(within(dialog).getByText("Recorded reading time")).toBeVisible()
   expect(within(dialog).queryByText("Current chapter")).not.toBeInTheDocument()
-  expect(within(dialog).queryByText("Kobo time remaining estimate")).not.toBeInTheDocument()
+  expect(within(dialog).queryByText("Time remaining · Kobo")).not.toBeInTheDocument()
 })

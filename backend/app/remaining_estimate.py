@@ -36,15 +36,23 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
             'sample_progress': 0, 'rejected_sessions': 0,
         } for book in books
     }
+    events_table = 'kstats_session_events' if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kstats_session_events'"
+    ).fetchone() else 'AnalyticsEvents'
     if not connection.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'AnalyticsEvents'"
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (events_table,)
     ).fetchone():
         return result
+    resets = {}
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE name='kstats_reading_resets' AND type='table'").fetchone():
+        resets = {content_id: datetime.fromisoformat(reset_at) for content_id, reset_at in
+                  connection.execute('SELECT content_id, reset_at FROM kstats_reading_resets')}
     samples: dict[str, list[tuple[int, float]]] = {book['content_id']: [] for book in books}
     pending = None
-    for row in _rows(connection, """
-        SELECT Type, Timestamp, Attributes, Metrics FROM AnalyticsEvents
-        WHERE Type IN ('OpenContent', 'LeaveContent') ORDER BY Timestamp, Id
+    for row in _rows(connection, f"""
+        SELECT Type, Timestamp, Attributes, Metrics FROM {events_table}
+        WHERE Type IN ('OpenContent', 'LeaveContent')
+        ORDER BY Timestamp, CASE Type WHEN 'LeaveContent' THEN 0 ELSE 1 END, Id
     """):
         try:
             attributes = json.loads(row['Attributes'])
@@ -64,6 +72,9 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
             if not math.isfinite(progress) or not 0 <= progress <= 100 or timestamp.tzinfo is None:
                 raise ValueError()
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError):
+            pending = None
+            continue
+        if content_id in resets and timestamp <= resets[content_id]:
             pending = None
             continue
         if row['Type'] == 'OpenContent':
@@ -114,6 +125,24 @@ def apply_remaining_estimates(connection: sqlite3.Connection) -> None:
         estimate = estimates[book['content_id']]
         seconds = estimate['seconds']
         source = 'sessions' if seconds is not None else None
+        if seconds is None and book['read_status'] == 1:
+            candidates = list(connection.execute(
+                'SELECT seconds, progress FROM kstats_reading_samples WHERE content_id=? ORDER BY id DESC LIMIT 10',
+                (book['content_id'],),
+            ))
+            if candidates:
+                center = math.exp(median(math.log(s / p) for s, p in candidates))
+                accepted = [(s, p) for s, p in candidates if center / 3 <= s / p <= center * 3]
+                progress = connection.execute('SELECT percent_read FROM kstats_books WHERE content_id=?',
+                                              (book['content_id'],)).fetchone()[0]
+                if accepted and 0 < progress < 100:
+                    estimate = {
+                        'sample_sessions': len(accepted),
+                        'sample_seconds': sum(s for s, _ in accepted),
+                        'sample_progress': sum(p for _, p in accepted),
+                    }
+                    seconds = round(estimate['sample_seconds'] / estimate['sample_progress'] * (100 - progress))
+                    source = 'observations'
         if seconds is None:
             seconds = book['remaining_seconds']
             if book['read_status'] == 1 and seconds > 0:
@@ -124,8 +153,8 @@ def apply_remaining_estimates(connection: sqlite3.Connection) -> None:
                 remaining_estimate_progress = ? WHERE content_id = ?
         """, (
             seconds, source,
-            estimate['sample_sessions'] if source == 'sessions' else 0,
-            estimate['sample_seconds'] if source == 'sessions' else 0,
-            estimate['sample_progress'] if source == 'sessions' else 0,
+            estimate['sample_sessions'] if source in ('sessions', 'observations') else 0,
+            estimate['sample_seconds'] if source in ('sessions', 'observations') else 0,
+            estimate['sample_progress'] if source in ('sessions', 'observations') else 0,
             book['content_id'],
         ))

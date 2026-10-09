@@ -16,6 +16,9 @@ from backend.app.logging_config import LOGGING_CONFIG
 logging.config.dictConfig(LOGGING_CONFIG)
 assert isinstance(logging.getLogger().handlers[0], RichHandler)
 assert isinstance(logging.getLogger("uvicorn.access").handlers[0], RichHandler)
+assert not logging.getLogger("watchfiles.main").isEnabledFor(logging.INFO)
+assert logging.getLogger("watchfiles.main").isEnabledFor(logging.WARNING)
+assert logging.getLogger("uvicorn.error").isEnabledFor(logging.INFO)
 """
 
     subprocess.run([sys.executable, "-c", script], check=True)

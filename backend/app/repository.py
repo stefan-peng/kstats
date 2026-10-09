@@ -33,6 +33,7 @@ SELECT
     author,
     read_status,
     reading_seconds,
+    reading_time_source,
     percent_read,
     date_last_read,
     finished_at,

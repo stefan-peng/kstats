@@ -125,3 +125,21 @@ def test_oversized_reported_seconds_do_not_break_snapshot_processing():
     connection.execute("UPDATE AnalyticsEvents SET Metrics = ? WHERE Type = 'LeaveContent'",
                        (json.dumps({'SecondsRead': 1 << 4096, 'PagesTurned': 40}),))
     assert estimate_remaining(connection)['book']['seconds'] is None
+
+
+def test_archive_pairs_adjacent_sessions_despite_hashed_id_order():
+    connection = database()
+    connection.execute('CREATE TABLE kstats_session_events (Id TEXT, Type TEXT, Timestamp TEXT, Attributes TEXT, Metrics TEXT)')
+    for event_id, kind, timestamp, progress in [
+        ('first-open', 'OpenContent', '2026-09-01T12:00:00Z', 16),
+        ('z-close', 'LeaveContent', '2026-09-01T12:04:00Z', 18),
+        ('a-open', 'OpenContent', '2026-09-01T12:04:00Z', 18),
+        ('last-close', 'LeaveContent', '2026-09-01T12:08:00Z', 20),
+    ]:
+        connection.execute('INSERT INTO kstats_session_events VALUES (?,?,?,?,?)',
+                           (event_id, kind, timestamp, json.dumps({'volumeid': 'book', 'progress': progress}),
+                            json.dumps({'SecondsRead': 240, 'PagesTurned': 40})))
+    result = estimate_remaining(connection)['book']
+    assert result['sample_sessions'] == 2
+    assert result['sample_seconds'] == 480
+    assert result['seconds'] == 9600
