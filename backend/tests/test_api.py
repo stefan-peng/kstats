@@ -93,6 +93,18 @@ def test_dashboard_distinguishes_unmatched_telemetry_without_changing_totals(cli
     assert payload['totals']['reading_seconds'] == 10861
 
 
+def test_resume_books_are_snapshot_anchored_and_have_normalized_api_values(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute("UPDATE kstats_import SET imported_at='2026-06-18T12:00:00Z'")
+    result = client.get('/api/dashboard').json()['resume_reading']
+    assert result['as_of'] == '2026-06-18T12:00:00+00:00'
+    assert len(result['books']) == 1
+    assert result['books'][0]['content_id'] == 'book-reading'
+    assert result['books'][0]['status'] == 'reading'
+    assert result['books'][0]['days_since_read'] == 2
+    assert 'read_status' not in result['books'][0]
+
+
 def test_dashboard_uses_requested_timezone(client):
     response = client.get(
         "/api/dashboard", params={"timezone": "America/New_York"}

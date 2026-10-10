@@ -101,6 +101,7 @@ export interface LibraryInsights {
 }
 
 export interface DashboardData {
+  resume_reading: { as_of: string | null; books: Array<Book & { days_since_read: number | null }> }
   library_insights: LibraryInsights
   telemetry_scope: { library_seconds: number; unmatched_seconds: number }
   totals: {

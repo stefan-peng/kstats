@@ -1,8 +1,10 @@
-import { render, screen, within } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { expect, test } from "vitest"
+import { afterEach, expect, test } from "vitest"
 import { ReadingInsights } from "./reading-insights"
 import type { LibraryInsights } from "@/types"
+
+afterEach(cleanup)
 
 const row = { label: "Ada Reader", books: 2, seconds: 7200, unread_seconds: 0, reading_seconds: 3600, finished_seconds: 3600 }
 const insights: LibraryInsights = {

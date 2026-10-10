@@ -21,6 +21,7 @@ from .kobo_events import (
     parse_reading_event,
 )
 from .reading_duration import aggregate_reading_duration
+from .resume_reading import resume_reading
 from .source_processing import (
     DISPLAYABLE_BOOKMARK_FILTER,
     SourceType,
@@ -176,6 +177,10 @@ class Repository:
                 dict(row) for row in connection.execute("SELECT * FROM kstats_books")
             ]
             insights = library_insights(library_books)
+            import_row = connection.execute("SELECT imported_at FROM kstats_import").fetchone() if connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kstats_import'"
+            ).fetchone() else None
+            resume = resume_reading(library_books, import_row[0] if import_row else None, chart_timezone)
             library_ids = {book["content_id"] for book in library_books}
             telemetry_scope = {"library_seconds": 0, "unmatched_seconds": 0}
             skipped_reading_rows = 0
@@ -246,6 +251,10 @@ class Repository:
             "reading_duration": reading_duration,
             "telemetry_scope": telemetry_scope,
             "library_insights": insights,
+            "resume_reading": {
+                "as_of": resume["as_of"],
+                "books": [serialize_book(book, self.covers_dir) for book in resume["books"]],
+            },
             "continue_reading": [
                 serialize_book(row, self.covers_dir) for row in continue_rows
             ],

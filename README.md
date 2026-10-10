@@ -17,6 +17,9 @@ Reading insights group current-library recorded time by author, source, format,
 or language, with language-region variants combined. Data coverage distinguishes
 undated completions, missing time counters, and telemetry outside current library
 IDs; these are not interpreted as confirmed inactivity or deleted books.
+The resume view compares in-progress books' progress and calendar days since last
+recorded reading, anchored to the snapshot date in the requested timezone. Missing,
+ambiguous, or future dates stay unknown. Shortest remaining estimates link to details.
 Remaining time uses recent paired reading sessions when available, with Kobo's
 stored estimate as a fallback. Book details identify the source and sample size.
 See [estimated time remaining](docs/remaining-time.md) for the calculation and limitations.

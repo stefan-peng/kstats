@@ -16,6 +16,7 @@ const dashboard = {
     removed_with_activity: 0,
     merged_removed_history: 0,
   },
+  resume_reading: { as_of: "2026-06-18T12:00:00Z", books: [] },
   library_insights: {
     quality: { dated_finished: 1, undated_finished: 0, active_without_recorded_time: 0, event_time_books: 0, books_with_word_count: 1 },
     composition: { author: [], source: [], format: [], language: [] },
@@ -748,7 +749,7 @@ test.each([true, false])("ignores a stale initial dashboard response (success: %
 test("supports library search and sortable headers on the dashboard", async () => {
   const user = userEvent.setup()
   render(<App />)
-  const bookHeader = await screen.findByRole("columnheader", { name: "Book" })
+  const bookHeader = (await screen.findAllByRole("columnheader", { name: "Book" })).find((header) => header.hasAttribute("aria-sort"))!
   expect(bookHeader).toHaveAttribute("aria-sort", "none")
   expect(bookHeader.closest("tr")).not.toHaveClass("hover:bg-muted/50")
   await user.click(within(bookHeader).getByRole("button"))

@@ -63,6 +63,7 @@ import { cn } from "@/lib/utils"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { LibrarySection } from "./library-page"
 import { ReadingInsights } from "./reading-insights"
+import { ResumeReading } from "./resume-reading"
 
 type DurationOption = DurationGranularity | "heatmap"
 
@@ -487,6 +488,7 @@ export function OverviewPage({
       </Card>
 
       <ReadingInsights insights={dashboard.library_insights} telemetryScope={dashboard.telemetry_scope} />
+      <ResumeReading data={dashboard.resume_reading} onOpenBook={onOpenBook} />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>
