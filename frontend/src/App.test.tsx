@@ -922,6 +922,7 @@ test("opens book details from the embedded library", async () => {
   ).toBeVisible()
   expect(within(dialog).queryByText(/Session records contain/)).not.toBeInTheDocument()
   expect(within(dialog).queryByText(/session records could not be used/)).not.toBeInTheDocument()
+  expect(dialog).toHaveClass("grid-cols-1")
   expect(within(dialog).getByText("Dictionary activity")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
 })

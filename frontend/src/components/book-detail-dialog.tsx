@@ -116,7 +116,7 @@ export function BookDetailDialog({
 
   return (
     <Dialog open={Boolean(contentId)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[88vh] grid-cols-1 overflow-y-auto sm:max-w-4xl">
         {!book && (
           <DialogHeader>
             <DialogTitle>{error ? "Unable to load book" : "Loading book"}</DialogTitle>
@@ -167,7 +167,7 @@ export function BookDetailDialog({
               </div>
             </DialogHeader>
 
-            <div className="flex flex-col gap-6">
+            <div className="flex min-w-0 flex-col gap-6">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between text-sm">
                   <span>Reading progress</span>

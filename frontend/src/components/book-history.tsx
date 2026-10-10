@@ -62,7 +62,7 @@ export function BookVocabulary({ words, activity }: {
       {(activity.reported_words.length > 0 || activity.recorded_at.length > 0) && (
         <Card>
           <CardHeader><CardTitle>Dictionary activity</CardTitle><CardDescription>Event rows retain reported word values and aggregate interaction timestamps. Earlier timestamps may refer to different words; this is not a complete vocabulary or lookup history.</CardDescription></CardHeader>
-          <CardContent className="grid gap-4">
+          <CardContent className="grid grid-cols-1 gap-4">
             {activity.reported_words.length > 0 && <Table>
               <TableHeader><TableRow><TableHead>Reported word</TableHead><TableHead>Reported dictionary</TableHead></TableRow></TableHeader>
               <TableBody>{activity.reported_words.map((word) => <TableRow key={`${word.word}-${word.dictionary}`}><TableCell>{word.word}</TableCell><TableCell>{word.dictionary ?? "Unknown"}</TableCell></TableRow>)}</TableBody>
