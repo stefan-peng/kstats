@@ -104,7 +104,7 @@ function bookDetail(overrides = {}) {
   return {
     ...dashboard.continue_reading[0],
     bookmarks: [],
-    dictionary_lookups: [],
+    dictionary_activity: { reported_words: [], recorded_at: [] },
     progress_milestones: [],
     saved_words: [],
     progress_pace: null,
@@ -167,7 +167,7 @@ function mockFetch() {
           return Response.json(bookDetail({
             ...dashboard.top_books[0],
             bookmarks: [],
-            dictionary_lookups: [],
+            dictionary_activity: { reported_words: [], recorded_at: [] },
           }))
         }
         return Response.json(bookDetail({
@@ -184,13 +184,10 @@ function mockFetch() {
               color: 0,
             },
           ],
-          dictionary_lookups: [
-            {
-              word: "perspicacious",
-              dictionary: "en",
-              recorded_at: [],
-            },
-          ],
+          dictionary_activity: {
+            reported_words: [{ word: "perspicacious", dictionary: "en" }],
+            recorded_at: [],
+          },
         }))
       }
       if (url.includes("/api/import")) {
@@ -925,7 +922,7 @@ test("opens book details from the embedded library", async () => {
   ).toBeVisible()
   expect(within(dialog).queryByText(/Session records contain/)).not.toBeInTheDocument()
   expect(within(dialog).queryByText(/session records could not be used/)).not.toBeInTheDocument()
-  expect(within(dialog).getByText("Dictionary lookups (1)")).toBeVisible()
+  expect(within(dialog).getByText("Dictionary activity")).toBeVisible()
   expect(within(dialog).getByText("perspicacious")).toBeVisible()
 })
 
@@ -1089,7 +1086,7 @@ test("suppresses unavailable remaining time", async () => {
           current_chapter_estimate_seconds: 0,
           rest_of_book_estimate_seconds: 0,
           bookmarks: [],
-          dictionary_lookups: [],
+          dictionary_activity: { reported_words: [], recorded_at: [] },
         }))
       }
       throw new Error(`Unhandled request: ${url}`)
@@ -1139,7 +1136,7 @@ test("shows unavailable chapter estimate as a dash", async () => {
           rest_of_book_estimate_seconds: 11507,
           remaining_seconds: 11507,
           bookmarks: [],
-          dictionary_lookups: [],
+          dictionary_activity: { reported_words: [], recorded_at: [] },
         }))
       }
       throw new Error(`Unhandled request: ${url}`)

@@ -17,14 +17,14 @@ test("shows repeated milestones as observations without inventing continuous pro
 })
 
 test("distinguishes saved vocabulary from retained lookup interactions", () => {
-  render(<BookVocabulary words={[{ word: "Saved", dictionary: "-en", saved_at: null }]} lookups={[
-    { word: "Looked up", dictionary: "-fr-en", recorded_at: ["2026-10-01T12:00:00Z", "2026-10-02T12:00:00Z"] },
-    { word: "Undated", dictionary: null, recorded_at: [] },
-  ]} />)
+  render(<BookVocabulary words={[{ word: "Saved", dictionary: "-en", saved_at: null }]} activity={{
+    reported_words: [{ word: "Looked up", dictionary: "-fr-en" }, { word: "Undated", dictionary: null }],
+    recorded_at: ["2026-10-01T12:00:00Z", "2026-10-02T12:00:00Z"],
+  }} />)
   expect(screen.getByText("Saved vocabulary (1)")).toBeVisible()
-  expect(screen.getByText("Dictionary lookups (2)")).toBeVisible()
-  expect(screen.getByText("No retained timestamps")).toBeVisible()
-  expect(screen.getByText(/not a complete lookup history/)).toBeVisible()
+  expect(screen.getByText("Dictionary activity")).toBeVisible()
+  expect(screen.getByText("2 distinct retained dictionary timestamps for this book, not per-word counts.")).toBeVisible()
+  expect(screen.getByText(/Earlier timestamps may refer to different words/)).toBeVisible()
   expect(screen.getAllByRole("table")).toHaveLength(2)
 })
 
@@ -42,6 +42,6 @@ test("identifies single samples and missing interval dates", () => {
 })
 
 test("does not fabricate empty histories", () => {
-  const { container } = render(<><ProgressMilestones milestones={[]} /><BookVocabulary words={[]} lookups={[]} /></>)
+  const { container } = render(<><ProgressMilestones milestones={[]} /><BookVocabulary words={[]} activity={{ reported_words: [], recorded_at: [] }} /></>)
   expect(container).toBeEmptyDOMElement()
 })

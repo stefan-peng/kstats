@@ -59,10 +59,9 @@ export interface Bookmark {
   color: number
 }
 
-export interface DictionaryLookup {
+export interface ReportedDictionaryWord {
   word: string
   dictionary: string | null
-  recorded_at: string[]
 }
 
 export interface SavedWord {
@@ -91,7 +90,7 @@ export interface BookDetail extends Book {
     pace_reason: string
   }>
   bookmarks: Bookmark[]
-  dictionary_lookups: DictionaryLookup[]
+  dictionary_activity: { reported_words: ReportedDictionaryWord[]; recorded_at: string[] }
   reading_duration: DashboardData["reading_duration"]
   data_source: {
     snapshot_path: string

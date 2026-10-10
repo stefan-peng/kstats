@@ -882,13 +882,11 @@ def test_book_detail_includes_visible_highlights(client):
             {"date": "2026-06-17", "seconds": 900},
         ],
     }
-    assert payload["dictionary_lookups"] == [
-        {
-            "word": "perspicacious",
-            "dictionary": "en",
-            "recorded_at": ['2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00'],
-        },
-    ]
+    assert payload["dictionary_activity"] == {
+        'reported_words': [{'word': 'perspicacious', 'dictionary': 'en'}],
+        'recorded_at': ['2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00'],
+    }
+    assert 'dictionary_lookups' not in payload
 
 
 def test_book_detail_exposes_milestones_saved_words_and_merged_lookup_timestamps(client, settings):
@@ -905,10 +903,26 @@ def test_book_detail_exposes_milestones_saved_words_and_merged_lookup_timestamps
     detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
     assert detail['saved_words'] == [{'word': 'Saved', 'dictionary': '-en', 'saved_at': '2026-06-16T12:00:00+00:00'}]
     assert detail['progress_milestones'] == [{'percent': 25, 'recorded_at': '2026-06-16T11:40:00+00:00'}]
-    assert detail['dictionary_lookups'][0]['recorded_at'] == [
+    assert detail['dictionary_activity']['recorded_at'] == [
         '2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00', '2026-06-16T11:46:40+00:00',
     ]
     assert detail['reading_seconds'] == 3661
+
+
+def test_dictionary_timestamps_are_book_scoped_even_without_a_reported_word(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute('DELETE FROM Event WHERE EventType=9')
+        connection.execute('INSERT INTO Event (EventType,ContentID,ExtraData) VALUES (9,?,?)', (
+            'book-reading', event_payload({'Word': 'last-word', 'DictionaryName': '-en',
+                'eventTimestamps': [100, 200, 300]}),
+        ))
+        connection.execute('INSERT INTO Event (EventType,ContentID,ExtraData) VALUES (9,?,?)', (
+            'book-reading', event_payload({'Word': ' ', 'eventTimestamps': [300, 400]}),
+        ))
+    activity = client.get('/api/book', params={'content_id': 'book-reading'}).json()['dictionary_activity']
+    assert activity['reported_words'] == [{'word': 'last-word', 'dictionary': '-en'}]
+    assert len(activity['recorded_at']) == 4
+    assert 'recorded_at' not in activity['reported_words'][0]
 
 
 def test_book_detail_skips_corrupt_dictionary_event(client, settings):
@@ -926,10 +940,10 @@ def test_book_detail_skips_corrupt_dictionary_event(client, settings):
 
     assert response.status_code == 200
     assert response.json()["title"] == "Current Book"
-    assert response.json()["dictionary_lookups"] == [
-        {"word": "perspicacious", "dictionary": "en",
-         "recorded_at": ['2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00']}
-    ]
+    assert response.json()["dictionary_activity"] == {
+        'reported_words': [{'word': 'perspicacious', 'dictionary': 'en'}],
+        'recorded_at': ['2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00'],
+    }
 
 
 def test_device_status_reports_corrupt_import_metadata(client, settings):

@@ -398,7 +398,7 @@ export function BookDetailDialog({
                 </>
               )}
 
-              <BookVocabulary words={book.saved_words} lookups={book.dictionary_lookups} />
+              <BookVocabulary words={book.saved_words} activity={book.dictionary_activity} />
 
               <Separator />
               <BookNotes key={book.content_id} book={book} />

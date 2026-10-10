@@ -112,7 +112,9 @@ Use **Jump to library**, **More filters**, and **Clear all** to navigate the das
 Book details offer **Copy highlights** and **Download text** for highlights and
 notes, including the book title, author, and recorded timestamps. Book details also
 show retained progress milestone crossings, saved WordList vocabulary, and
-deduplicated dictionary entries with their retained interaction timestamps.
+reported dictionary word values and book-level retained interaction timestamps.
+Dictionary event timestamps are not attributed to individual words: an aggregate
+row can retain many interactions while reporting only one word value.
 These are recorded observations, not complete progress or lookup histories.
 Highlights can be searched by text or annotation and filtered by stored color
 code and local creation month. Exports always include all of the book's notes.

@@ -40,9 +40,9 @@ export function ProgressMilestones({ milestones }: { milestones: BookDetail["pro
   )
 }
 
-export function BookVocabulary({ words, lookups }: {
+export function BookVocabulary({ words, activity }: {
   words: BookDetail["saved_words"]
-  lookups: BookDetail["dictionary_lookups"]
+  activity: BookDetail["dictionary_activity"]
 }) {
   return (
     <>
@@ -59,19 +59,21 @@ export function BookVocabulary({ words, lookups }: {
           </CardContent>
         </Card>
       )}
-      {lookups.length > 0 && (
+      {(activity.reported_words.length > 0 || activity.recorded_at.length > 0) && (
         <Card>
-          <CardHeader><CardTitle>Dictionary lookups ({lookups.length})</CardTitle><CardDescription>Unique word/dictionary entries with retained interaction timestamps, not a complete lookup history.</CardDescription></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>Word</TableHead><TableHead>Dictionary</TableHead><TableHead>Recorded interactions</TableHead></TableRow></TableHeader>
-              <TableBody>{lookups.map((lookup) => (
-                <TableRow key={`${lookup.word}-${lookup.dictionary}`}>
-                  <TableCell>{lookup.word}</TableCell><TableCell>{lookup.dictionary ?? "Unknown"}</TableCell>
-                  <TableCell>{lookup.recorded_at.length ? lookup.recorded_at.map((timestamp) => <p key={timestamp}><time dateTime={timestamp}>{formatDateTime(timestamp)}</time></p>) : "No retained timestamps"}</TableCell>
-                </TableRow>
-              ))}</TableBody>
-            </Table>
+          <CardHeader><CardTitle>Dictionary activity</CardTitle><CardDescription>Event rows retain reported word values and aggregate interaction timestamps. Earlier timestamps may refer to different words; this is not a complete vocabulary or lookup history.</CardDescription></CardHeader>
+          <CardContent className="grid gap-4">
+            {activity.reported_words.length > 0 && <Table>
+              <TableHeader><TableRow><TableHead>Reported word</TableHead><TableHead>Reported dictionary</TableHead></TableRow></TableHeader>
+              <TableBody>{activity.reported_words.map((word) => <TableRow key={`${word.word}-${word.dictionary}`}><TableCell>{word.word}</TableCell><TableCell>{word.dictionary ?? "Unknown"}</TableCell></TableRow>)}</TableBody>
+            </Table>}
+            <div className="grid gap-1 text-sm">
+              <p>{formatNumber(activity.recorded_at.length)} distinct retained dictionary timestamps for this book, not per-word counts.</p>
+              {activity.recorded_at.length > 0 ? <>
+                <p>Earliest retained interaction: {formatDateTime(activity.recorded_at[0])}</p>
+                <p>Latest retained interaction: {formatDateTime(activity.recorded_at[activity.recorded_at.length - 1])}</p>
+              </> : <p>No retained timestamps</p>}
+            </div>
           </CardContent>
         </Card>
       )}

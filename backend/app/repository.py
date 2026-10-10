@@ -410,7 +410,8 @@ class Repository:
                 """.format(DISPLAYABLE_BOOKMARK_FILTER=DISPLAYABLE_BOOKMARK_FILTER),
                 [content_id],
             ).fetchall()
-            dictionary_lookups: dict[tuple[str, str], dict[str, Any]] = {}
+            reported_dictionary_words: dict[tuple[str, str], dict[str, Any]] = {}
+            dictionary_timestamps: set[str] = set()
             skipped_reading_rows = 0
             reading_duration = aggregate_reading_duration([], chart_timezone)
             if connection.execute(
@@ -431,6 +432,7 @@ class Repository:
                         payload = decode_event_payload(event_row["ExtraData"])
                     except EventDecodeError:
                         continue
+                    dictionary_timestamps.update(recorded_timestamps(payload))
                     lookup = parse_dictionary_event(payload)
                     if lookup is None:
                         continue
@@ -438,8 +440,7 @@ class Repository:
                         lookup["word"].casefold(),
                         (lookup["dictionary"] or "").casefold(),
                     )
-                    lookup = dictionary_lookups.setdefault(key, {**lookup, "recorded_at": []})
-                    lookup["recorded_at"] = sorted(set(lookup["recorded_at"]) | set(recorded_timestamps(payload)))
+                    reported_dictionary_words.setdefault(key, lookup)
                 reading_rows = connection.execute(
                     """
                     SELECT CAST(ExtraData AS BLOB) AS ExtraData
@@ -477,13 +478,16 @@ class Repository:
             "read_only": True,
         }
         book["bookmarks"] = [dict(item) for item in bookmark_rows]
-        book["dictionary_lookups"] = sorted(
-            dictionary_lookups.values(),
-            key=lambda lookup: (
-                lookup["word"].casefold(),
-                (lookup["dictionary"] or "").casefold(),
+        book["dictionary_activity"] = {
+            "reported_words": sorted(
+                reported_dictionary_words.values(),
+                key=lambda lookup: (
+                    lookup["word"].casefold(),
+                    (lookup["dictionary"] or "").casefold(),
+                ),
             ),
-        )
+            "recorded_at": sorted(dictionary_timestamps),
+        }
         book["reading_duration"] = reading_duration
         book["recent_sessions"] = recent_sessions
         book["progress_milestones"] = milestones
