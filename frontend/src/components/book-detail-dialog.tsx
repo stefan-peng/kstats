@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   CalendarDays,
-  Copy,
-  Download,
   Clock3,
-  Highlighter,
   Timer,
 } from "lucide-react"
-import { toast } from "sonner"
-import { downloadHighlights, formatHighlights } from "@/lib/highlights"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -47,6 +42,7 @@ import { prepareDailyDurationSeries } from "@/lib/reading-duration"
 import type { BookDetail } from "@/types"
 import { BookCover } from "./book-cover"
 import { BookVocabulary, ProgressMilestones } from "./book-history"
+import { BookNotes } from "./book-notes"
 import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
 
@@ -401,70 +397,7 @@ export function BookDetailDialog({
               <BookVocabulary words={book.saved_words} lookups={book.dictionary_lookups} />
 
               <Separator />
-              <section className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <Highlighter className="size-4 text-primary" />
-                  <h3 className="font-medium">
-                    Highlights and notes ({book.bookmarks.length})
-                  </h3>
-                </div>
-                {book.bookmarks.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(formatHighlights(book))
-                        toast.success("Highlights and notes copied")
-                      } catch {
-                        toast.error("Unable to copy. Use Download text to save your highlights.")
-                      }
-                    }}>
-                      <Copy data-icon="inline-start" />
-                      Copy highlights
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => {
-                      try {
-                        downloadHighlights(book)
-                      } catch {
-                        toast.error("Unable to download highlights. You can still select and copy the text below.")
-                      }
-                    }}>
-                      <Download data-icon="inline-start" />
-                      Download text
-                    </Button>
-                  </div>
-                )}
-                {book.bookmarks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No highlights or notes are stored for this book.
-                  </p>
-                ) : (
-                  book.bookmarks.map((bookmark) => (
-                    <blockquote
-                      key={bookmark.id}
-                      className="flex flex-col gap-2 border-l-2 border-primary pl-4"
-                    >
-                      {bookmark.text && (
-                        <p className="whitespace-pre-wrap break-words text-sm">
-                          {bookmark.text}
-                        </p>
-                      )}
-                      {bookmark.annotation && (
-                        <div className="flex flex-col gap-1">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Note
-                          </p>
-                          <p className="whitespace-pre-wrap break-words text-sm italic text-muted-foreground">
-                            {bookmark.annotation}
-                          </p>
-                        </div>
-                      )}
-                      <footer className="text-xs text-muted-foreground">
-                        {formatDate(bookmark.created_at)}
-                      </footer>
-                    </blockquote>
-                  ))
-                )}
-              </section>
+              <BookNotes key={book.content_id} book={book} />
             </div>
           </>
         )}

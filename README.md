@@ -114,6 +114,8 @@ notes, including the book title, author, and recorded timestamps. Book details a
 show retained progress milestone crossings, saved WordList vocabulary, and
 deduplicated dictionary entries with their retained interaction timestamps.
 These are recorded observations, not complete progress or lookup histories.
+Highlights can be searched by text or annotation and filtered by stored color
+code and local creation month. Exports always include all of the book's notes.
 
 ## Maintenance
 
