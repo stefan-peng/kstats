@@ -1270,6 +1270,7 @@ def test_book_reads_explicit_recent_sessions_without_double_counting(client, set
     assert detail['recent_sessions'] == [{
         'id': 'valid', 'ended_at': '2026-09-27T03:22:36+00:00',
         'seconds': 154, 'pages_turned': 9,
+        'started_at': None, 'progress_change': None, 'pace_reason': 'No usable paired progress',
     }]
     assert detail['reading_duration']['source_seconds'] == 1800
     assert detail['reading_seconds'] == 3661
@@ -1338,6 +1339,9 @@ def test_session_remaining_time_is_consistent_across_views_sorting_and_paginatio
         'seconds_per_percent': 120, 'sample_min': 120, 'sample_max': 120,
         'sample_count': 1, 'latest_sample_at': '2026-09-28T12:04:00+00:00',
     }
+    assert detail['recent_sessions'][0]['started_at'] == '2026-09-28T12:00:00+00:00'
+    assert detail['recent_sessions'][0]['progress_change'] == 2
+    assert detail['recent_sessions'][0]['pace_reason'] == 'Usable pace sample'
     assert detail['current_chapter_estimate_seconds'] == 4060
     assert detail['rest_of_book_estimate_seconds'] == 11507
 
@@ -1378,4 +1382,6 @@ def test_rejected_session_falls_back_to_kobo(client, settings):
     detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
     assert detail['remaining_seconds'] == 15567
     assert detail['remaining_estimate_source'] == 'kobo'
+    assert detail['recent_sessions'][0]['progress_change'] == 17
+    assert detail['recent_sessions'][0]['pace_reason'] == 'No small positive progress change'
     assert detail['remaining_estimate_sessions'] == 0

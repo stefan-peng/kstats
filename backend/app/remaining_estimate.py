@@ -7,6 +7,12 @@ from statistics import median
 from typing import TypedDict
 
 
+class SessionAssessment(TypedDict):
+    started_at: str | None
+    progress_change: float | None
+    pace_reason: str
+
+
 class RemainingEstimate(TypedDict):
     seconds: int | None
     sample_sessions: int
@@ -15,6 +21,7 @@ class RemainingEstimate(TypedDict):
     rejected_sessions: int
     sample_rates: list[float]
     sample_latest_at: str | None
+    session_assessments: dict[str, SessionAssessment]
 
 
 def _rows(connection: sqlite3.Connection, query: str) -> list[dict]:
@@ -36,7 +43,7 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
         book['content_id']: {
             'seconds': None, 'sample_sessions': 0, 'sample_seconds': 0,
             'sample_progress': 0, 'rejected_sessions': 0,
-            'sample_rates': [], 'sample_latest_at': None,
+            'sample_rates': [], 'sample_latest_at': None, 'session_assessments': {},
         } for book in books
     }
     events_table = 'kstats_session_events' if connection.execute(
@@ -50,10 +57,10 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
     if connection.execute("SELECT 1 FROM sqlite_master WHERE name='kstats_reading_resets' AND type='table'").fetchone():
         resets = {content_id: datetime.fromisoformat(reset_at) for content_id, reset_at in
                   connection.execute('SELECT content_id, reset_at FROM kstats_reading_resets')}
-    samples: dict[str, list[tuple[int, float, datetime]]] = {book['content_id']: [] for book in books}
+    samples: dict[str, list[tuple[int, float, datetime, str]]] = {book['content_id']: [] for book in books}
     pending = None
     for row in _rows(connection, f"""
-        SELECT Type, Timestamp, Attributes, Metrics FROM {events_table}
+        SELECT Id, Type, Timestamp, Attributes, Metrics FROM {events_table}
         WHERE Type IN ('OpenContent', 'LeaveContent')
         ORDER BY Timestamp, CASE Type WHEN 'LeaveContent' THEN 0 ELSE 1 END, Id
     """):
@@ -77,7 +84,15 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
         except (TypeError, ValueError, KeyError, AttributeError, OverflowError):
             pending = None
             continue
+        assessment = None
+        if row['Type'] == 'LeaveContent':
+            assessment = result[content_id]['session_assessments'].setdefault(str(row['Id']), {
+                'started_at': None, 'progress_change': None,
+                'pace_reason': 'No matching retained opening',
+            })
         if content_id in resets and timestamp <= resets[content_id]:
+            if assessment is not None:
+                assessment['pace_reason'] = 'Before detected reading reset'
             pending = None
             continue
         if row['Type'] == 'OpenContent':
@@ -86,20 +101,32 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
         opening, pending = pending, None
         if opening is None or opening[0] != content_id:
             continue
+        assessment['started_at'] = opening[2].isoformat()
         delta = progress - opening[1]
+        assessment['progress_change'] = delta
         elapsed = (timestamp - opening[2]).total_seconds()
         seconds, pages = metrics.get('SecondsRead'), metrics.get('PagesTurned')
         # Rounded progress and brief navigation are poor speed measurements.
-        if (type(seconds) is not int or not 120 <= seconds <= 2**63 - 1 or elapsed <= 0
-                or abs(seconds - elapsed) > max(10, elapsed * .1)
-                or not 0 < delta <= 10 or type(pages) is not int or pages < 10):
+        reason = None
+        if type(seconds) is not int or not 120 <= seconds <= 2**63 - 1:
+            reason = 'Insufficient or invalid reported duration'
+        elif elapsed <= 0 or abs(seconds - elapsed) > max(10, elapsed * .1):
+            reason = 'Reported duration does not match paired elapsed time'
+        elif not 0 < delta <= 10:
+            reason = 'No small positive progress change'
+        elif type(pages) is not int or pages < 10:
+            reason = 'Fewer than 10 valid reported page turns'
+        if reason is not None:
+            assessment['pace_reason'] = reason
             result[content_id]['rejected_sessions'] += 1
             continue
         rate = seconds / delta
         if not math.isfinite(rate) or rate * 100 > 2**63 - 1:
+            assessment['pace_reason'] = 'Unrepresentable progress pace'
             result[content_id]['rejected_sessions'] += 1
             continue
-        samples[content_id].append((seconds, delta, timestamp))
+        assessment['pace_reason'] = 'Outside latest 10 usable candidates'
+        samples[content_id].append((seconds, delta, timestamp, str(row['Id'])))
     for book in books:
         content_id = book['content_id']
         candidates = samples[content_id][-10:]
@@ -107,16 +134,21 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
             continue
         # Center multiplicative rates in log space. Two conflicting samples
         # should not preferentially select the slower one as the ordinary median does.
-        center = math.exp(median(math.log(seconds / delta) for seconds, delta, _ in candidates))
-        accepted = [(seconds, delta, timestamp) for seconds, delta, timestamp in candidates
+        center = math.exp(median(math.log(seconds / delta) for seconds, delta, _, _ in candidates))
+        accepted = [(seconds, delta, timestamp, event_id) for seconds, delta, timestamp, event_id in candidates
                     if center / 3 <= seconds / delta <= center * 3]
         output = result[content_id]
+        accepted_ids = {event_id for _, _, _, event_id in accepted}
+        for _, _, _, event_id in candidates:
+            output['session_assessments'][event_id]['pace_reason'] = (
+                'Usable pace sample' if event_id in accepted_ids else 'Pace outlier'
+            )
         output['rejected_sessions'] += len(candidates) - len(accepted)
         output['sample_sessions'] = len(accepted)
-        output['sample_seconds'] = sum(seconds for seconds, _, _ in accepted)
-        output['sample_progress'] = sum(delta for _, delta, _ in accepted)
-        output['sample_rates'] = [seconds / delta for seconds, delta, _ in accepted]
-        output['sample_latest_at'] = max(timestamp for _, _, timestamp in accepted).isoformat() if accepted else None
+        output['sample_seconds'] = sum(seconds for seconds, _, _, _ in accepted)
+        output['sample_progress'] = sum(delta for _, delta, _, _ in accepted)
+        output['sample_rates'] = [seconds / delta for seconds, delta, _, _ in accepted]
+        output['sample_latest_at'] = max(timestamp for _, _, timestamp, _ in accepted).isoformat() if accepted else None
         if book['read_status'] == 1 and 0 < book['percent_read'] < 100 and accepted:
             output['seconds'] = round(output['sample_seconds'] / output['sample_progress']
                                       * (100 - book['percent_read']))
@@ -134,14 +166,14 @@ def _accepted_interval_samples(connection: sqlite3.Connection, content_id: str) 
     return [(s, p) for s, p in candidates if center / 3 <= s / p <= center * 3]
 
 
-def progress_pace(connection: sqlite3.Connection, book: dict) -> dict | None:
+def progress_pace(connection: sqlite3.Connection, book: dict, session_estimate: RemainingEstimate | None = None) -> dict | None:
     """Observed accepted-sample spread, not a prediction or confidence interval."""
     source = book['remaining_estimate_source']
     if source not in ('sessions', 'observations') or book['remaining_estimate_progress'] <= 0:
         return None
     latest = None
     if source == 'sessions':
-        estimate = estimate_remaining(connection)[book['content_id']]
+        estimate = session_estimate if session_estimate is not None else estimate_remaining(connection)[book['content_id']]
         rates = estimate['sample_rates']
         latest = estimate['sample_latest_at']
     else:

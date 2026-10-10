@@ -4,7 +4,11 @@ Remaining time first uses a reading rate computed from paired OpenContent/LeaveC
 
 When paired sessions are unavailable, the app learns a rate from changes between imports in the independent Event type 3 `ExtraDataReadingSeconds` counter and book progress. The first import establishes a baseline; a later import after reading supplies a sample. A sample requires at least 120 additional recorded seconds, 1–25 percentage points of progress, and no more recorded time than the elapsed time between observations (with 10 seconds of tolerance). Reading with unchanged rounded progress accumulates until progress advances. Counter decreases, progress decreases and unread resets discard previous rates. Archived sessions predating a detected reset are excluded. Only the latest ten interval samples per book are retained. Unchanged imports do not add samples.
 
-Session matching uses volumeid, or an exact title/author match only when unique in the canonical library. A paired session requires at least 120 reported seconds, 10 page turns, positive progress no greater than 10 percentage points, and elapsed time within 10 seconds or 10% of reported seconds. IdleTime is not separately subtracted.
+Session matching uses volumeid, or an exact title/author match only when unique in the canonical library. A paired session requires at least 120 reported seconds, 10 page turns, positive progress no greater than 10 percentage points, and elapsed time within 10 seconds or 10% of reported seconds. IdleTime is not separately subtracted. Recent archived session records show the
+paired opening and observed progress change when usable, plus the estimator's
+sample assessment (including short duration, progress jump, elapsed-time mismatch,
+or pace outlier). These assessments reuse the estimator's checks; they are not
+proof that a record represents genuine continuous reading.
 
 For either kind of estimate, rates from the latest ten candidates must be within a factor of three of their median in log space. This treats multiplicative differences symmetrically, including when there are only two conflicting samples. Remaining seconds equal summed recorded seconds divided by summed progress, multiplied by remaining percentage. Book details identify the source and show sample coverage; an import interval can include several reading sessions.
 

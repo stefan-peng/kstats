@@ -198,7 +198,7 @@ export function BookDetailDialog({
                   <CardHeader>
                     <CardTitle>Recent Kobo sessions</CardTitle>
                     <CardDescription>
-                      Up to 20 archived records logged when leaving this book, not a complete history. Not added to reading totals.
+                      Up to 20 archived records logged when leaving this book, not a complete history. Not added to reading totals. Pace-sample checks are heuristics, not proof of reading.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -207,8 +207,11 @@ export function BookDetailDialog({
                         <div key={session.id} className="flex flex-wrap justify-between gap-2 text-sm">
                           <dt>{formatDateTime(session.ended_at)}</dt>
                           <dd>
-                            {formatNumber(session.seconds)}s
-                            {session.pages_turned !== null && ` · ${formatNumber(session.pages_turned)} page turns`}
+                            <p>{formatNumber(session.seconds)}s
+                            {session.pages_turned !== null && ` · ${formatNumber(session.pages_turned)} page turns`}</p>
+                            {session.started_at && <p className="text-xs text-muted-foreground">Paired opening: {formatDateTime(session.started_at)}</p>}
+                            {session.progress_change !== null && <p className="text-xs text-muted-foreground">{formatNumber(session.progress_change)} percentage points observed</p>}
+                            <p className="text-xs text-muted-foreground">{session.pace_reason}</p>
                           </dd>
                         </div>
                       ))}

@@ -33,7 +33,7 @@ def test_estimate_filters_jumps_and_speed_outliers_without_mutating_kobo():
     session(connection, 6, 11, 120)  # Implausibly fast relative to the other sessions.
     session(connection, 0, 17, 293)  # Progress reset/navigation jump.
     result = estimate_remaining(connection)['book']
-    assert result == {'seconds': 9600, 'sample_sessions': 3, 'sample_seconds': 720,
+    assert {key: value for key, value in result.items() if key != 'session_assessments'} == {'seconds': 9600, 'sample_sessions': 3, 'sample_seconds': 720,
                       'sample_progress': 6, 'rejected_sessions': 2,
                       'sample_rates': [120.0, 120.0, 120.0],
                       'sample_latest_at': '2026-09-01T04:04:00+00:00'}
@@ -102,6 +102,7 @@ def test_conflicting_rates_do_not_prefer_the_slower_sample():
     assert result['seconds'] is None
     assert result['sample_sessions'] == 0
     assert result['rejected_sessions'] == 2
+    assert all(value['pace_reason'] == 'Pace outlier' for value in result['session_assessments'].values())
 
 
 def test_estimation_supports_default_sqlite_row_factory():

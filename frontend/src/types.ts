@@ -86,6 +86,9 @@ export interface BookDetail extends Book {
     ended_at: string
     seconds: number
     pages_turned: number | null
+    started_at: string | null
+    progress_change: number | null
+    pace_reason: string
   }>
   bookmarks: Bookmark[]
   dictionary_lookups: DictionaryLookup[]

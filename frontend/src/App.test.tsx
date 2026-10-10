@@ -1502,6 +1502,9 @@ test("shows explicit recent sessions separately from undated aggregate telemetry
           ended_at: "2026-09-27T03:22:36+00:00",
           seconds: 154,
           pages_turned: 9,
+          started_at: null,
+          progress_change: null,
+          pace_reason: "No usable paired progress",
         }],
         reading_duration: {
           estimated: true,
@@ -1523,6 +1526,7 @@ test("shows explicit recent sessions separately from undated aggregate telemetry
   expect(within(dialog).getByText("Recent Kobo sessions")).toBeVisible()
   expect(within(dialog).getByText(/Up to 20 archived records/)).toBeVisible()
   expect(within(dialog).getByText("154s · 9 page turns")).toBeVisible()
+  expect(within(dialog).getByText("No usable paired progress")).toBeVisible()
   expect(within(dialog).getByText(/9s cannot be assigned reliably to dates/)).toBeVisible()
   expect(within(dialog).getByText("Daily reading time is unavailable for this telemetry.")).toBeVisible()
   expect(within(dialog).queryByRole("img", { name: "Estimated reading time by day" })).not.toBeInTheDocument()
