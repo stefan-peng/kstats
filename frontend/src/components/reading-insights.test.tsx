@@ -16,7 +16,7 @@ test("exposes provenance and changes time grouping with accessible tabular value
   const user = userEvent.setup()
   render(<ReadingInsights insights={insights} telemetryScope={{ library_seconds: 1800, unmatched_seconds: 3600 }} />)
   expect(screen.getByText("38 dated · 10 missing or unusable")).toBeVisible()
-  expect(screen.getByText(/1 books · retained coverage/)).toBeVisible()
+  expect(screen.getByText(/1 book · retained coverage/)).toBeVisible()
   const table = screen.getByRole("table")
   expect(within(table).getByText("Ada Reader")).toBeVisible()
   expect(within(table).getByText("2h")).toBeVisible()
@@ -24,6 +24,13 @@ test("exposes provenance and changes time grouping with accessible tabular value
   await user.click(screen.getByRole("option", { name: "Source" }))
   expect(within(table).getByText("Kobo store")).toBeVisible()
   expect(within(table).queryByText("Ada Reader")).not.toBeInTheDocument()
+})
+
+test("labels all ten plotted groups rather than silently skipping alternating labels", () => {
+  const rows = Array.from({ length: 10 }, (_, index) => ({ ...row, label: `Author${index}` }))
+  render(<ReadingInsights insights={{ ...insights, composition: { ...insights.composition, author: rows } }} telemetryScope={{ library_seconds: 0, unmatched_seconds: 0 }} />)
+  const chart = screen.getByLabelText("Recorded reading time by author")
+  for (const row of rows) expect(within(chart).getByText(row.label)).toBeInTheDocument()
 })
 
 test("handles an empty library without fabricating reading time", () => {

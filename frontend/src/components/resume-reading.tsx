@@ -52,16 +52,18 @@ export function ResumeReading({ data, onOpenBook }: {
           )}
           {data.books.length === 0 && <p className="text-sm text-muted-foreground">No books are currently marked as in progress.</p>}
         </div>
-        <Table>
-          <TableHeader><TableRow><TableHead>Book</TableHead><TableHead className="text-right">Progress</TableHead><TableHead className="text-right">Days since last read</TableHead></TableRow></TableHeader>
+        <div className="max-h-96 overflow-y-auto" role="region" aria-label="Scrollable in-progress books" tabIndex={0}>
+        <Table className="table-fixed">
+          <TableHeader><TableRow><TableHead className="w-1/2">Book</TableHead><TableHead className="w-1/4 text-right">Progress</TableHead><TableHead className="whitespace-normal text-right">Days since last read</TableHead></TableRow></TableHeader>
           <TableBody>{data.books.map((book) => (
             <TableRow key={book.content_id}>
-              <TableCell><Button variant="link" className="h-auto max-w-64 justify-start whitespace-normal px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button></TableCell>
+              <TableCell className="whitespace-normal"><Button variant="link" className="h-auto max-w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button></TableCell>
               <TableCell className="text-right">{book.percent_read}%</TableCell>
               <TableCell className="text-right">{book.days_since_read ?? "Unknown"}</TableCell>
             </TableRow>
           ))}</TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   )

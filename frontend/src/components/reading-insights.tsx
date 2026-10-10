@@ -42,21 +42,21 @@ export function ReadingInsights({ insights, telemetryScope }: {
         </CardHeader>
         <CardContent className="grid gap-4">
           {rows.length > 0 && (
-            <ChartContainer config={config} className="h-64 w-full aspect-auto" aria-label={`Recorded reading time by ${dimension}`}>
+            <ChartContainer config={config} className="h-80 w-full aspect-auto" initialDimension={{ width: 640, height: 320 }} aria-label={`Recorded reading time by ${dimension}`}>
               <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 0, right: 12 }}>
                 <CartesianGrid horizontal={false} />
                 <XAxis type="number" tickFormatter={(value) => formatDuration(Number(value))} />
-                <YAxis type="category" dataKey="label" width={110} tickLine={false} axisLine={false} tickFormatter={(label: string) => label.length > 18 ? `${label.slice(0, 17)}…` : label} />
+                <YAxis type="category" dataKey="label" interval={0} width={110} tickLine={false} axisLine={false} tickFormatter={(label: string) => label.length > 18 ? `${label.slice(0, 17)}…` : label} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => <span>{config[name as keyof typeof config]?.label}: {formatDuration(Number(value))}</span>} />} />
                 <ChartLegend content={<ChartLegendContent />} />
                 {Object.keys(config).map((key) => <Bar key={key} dataKey={key} stackId="time" fill={`var(--color-${key})`} isAnimationActive={false} />)}
               </BarChart>
             </ChartContainer>
           )}
-          <Table>
+          <Table className="table-fixed">
             <TableCaption>{rows.length ? "Recorded time is not necessarily complete lifetime reading." : "No positive recorded reading time."}</TableCaption>
-            <TableHeader><TableRow><TableHead>{dimensions[dimension]}</TableHead><TableHead className="text-right">Books</TableHead><TableHead className="text-right">Recorded time</TableHead></TableRow></TableHeader>
-            <TableBody>{rows.map((row) => <TableRow key={row.label}><TableCell>{row.label}</TableCell><TableCell className="text-right">{formatNumber(row.books)}</TableCell><TableCell className="text-right">{formatDuration(row.seconds)}</TableCell></TableRow>)}</TableBody>
+            <TableHeader><TableRow><TableHead className="w-1/2">{dimensions[dimension]}</TableHead><TableHead className="w-1/5 text-right">Books</TableHead><TableHead className="whitespace-normal text-right">Recorded time</TableHead></TableRow></TableHeader>
+            <TableBody>{rows.map((row) => <TableRow key={row.label}><TableCell className="whitespace-normal break-words">{row.label}</TableCell><TableCell className="text-right">{formatNumber(row.books)}</TableCell><TableCell className="text-right">{formatDuration(row.seconds)}</TableCell></TableRow>)}</TableBody>
           </Table>
         </CardContent>
       </Card>
@@ -69,7 +69,7 @@ export function ReadingInsights({ insights, telemetryScope }: {
           <dl className="grid gap-4 text-sm">
             <div><dt className="text-muted-foreground">Completion dates</dt><dd>{formatNumber(quality.dated_finished)} dated · {formatNumber(quality.undated_finished)} missing or unusable</dd></div>
             <div><dt className="text-muted-foreground">Started or finished with no recorded time</dt><dd>{formatNumber(quality.active_without_recorded_time)} books</dd></div>
-            <div><dt className="text-muted-foreground">Reading totals substituted from telemetry</dt><dd>{formatNumber(quality.event_time_books)} books · retained coverage, not lifetime time</dd></div>
+            <div><dt className="text-muted-foreground">Reading totals substituted from telemetry</dt><dd>{formatNumber(quality.event_time_books)} {quality.event_time_books === 1 ? "book" : "books"} · retained coverage, not lifetime time</dd></div>
             <div><dt className="text-muted-foreground">Books with word counts</dt><dd>{formatNumber(quality.books_with_word_count)}</dd></div>
             <div><dt className="text-muted-foreground">Telemetry matched to current library IDs</dt><dd>{formatDuration(telemetryScope.library_seconds)}</dd></div>
             <div><dt className="text-muted-foreground">Telemetry outside current library IDs</dt><dd>{formatDuration(telemetryScope.unmatched_seconds)} · may include removed or differently identified content</dd></div>

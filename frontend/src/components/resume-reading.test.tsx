@@ -26,6 +26,7 @@ test("shows snapshot-relative inactivity and opens shortest-estimate books", asy
   ] }} onOpenBook={onOpenBook} />)
   expect(screen.getByText(/Days since last recorded reading do not establish abandonment/)).toBeVisible()
   const table = screen.getByRole("table")
+  expect(screen.getByRole("region", { name: "Scrollable in-progress books" })).toHaveAttribute("tabindex", "0")
   expect(within(table).getByText("70")).toBeVisible()
   expect(within(table).getByText("Unknown")).toBeVisible()
   expect(screen.getByText("10m estimated · Kobo")).toBeVisible()
