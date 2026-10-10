@@ -10,6 +10,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from .config import Settings
+from .book_insights import progress_milestones, recorded_timestamps, saved_words
 from .importer import prepare_snapshot
 from .library_insights import library_insights
 from .kobo_events import (
@@ -392,6 +393,8 @@ class Repository:
             if row is None:
                 return None
             recent_sessions = self._recent_sessions(connection, content_id)
+            milestones = progress_milestones(connection, content_id)
+            vocabulary = saved_words(connection, content_id)
             bookmark_rows = connection.execute(
                 """
                 SELECT BookmarkID AS id, Text AS text, Annotation AS annotation,
@@ -432,7 +435,8 @@ class Repository:
                         lookup["word"].casefold(),
                         (lookup["dictionary"] or "").casefold(),
                     )
-                    dictionary_lookups.setdefault(key, lookup)
+                    lookup = dictionary_lookups.setdefault(key, {**lookup, "recorded_at": []})
+                    lookup["recorded_at"] = sorted(set(lookup["recorded_at"]) | set(recorded_timestamps(payload)))
                 reading_rows = connection.execute(
                     """
                     SELECT CAST(ExtraData AS BLOB) AS ExtraData
@@ -479,6 +483,8 @@ class Repository:
         )
         book["reading_duration"] = reading_duration
         book["recent_sessions"] = recent_sessions
+        book["progress_milestones"] = milestones
+        book["saved_words"] = vocabulary
         return book
 
     @staticmethod

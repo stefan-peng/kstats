@@ -886,8 +886,29 @@ def test_book_detail_includes_visible_highlights(client):
         {
             "word": "perspicacious",
             "dictionary": "en",
+            "recorded_at": ['2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00'],
         },
     ]
+
+
+def test_book_detail_exposes_milestones_saved_words_and_merged_lookup_timestamps(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.executescript('CREATE TABLE WordList (Text TEXT, VolumeId TEXT, DictSuffix TEXT, DateCreated TEXT)')
+        connection.execute("INSERT INTO WordList VALUES ('Saved', 'book-reading', '-en', '2026-06-16T12:00:00Z')")
+        connection.execute('INSERT INTO Event (EventType, ContentID, ExtraData) VALUES (1012, ?, ?)', (
+            'book-reading', event_payload({'eventTimestamps': [1781610000]}),
+        ))
+        connection.execute('INSERT INTO Event (EventType, ContentID, ExtraData) VALUES (9, ?, ?)', (
+            'book-reading', event_payload({'Word': 'PERSPICACIOUS', 'DictionaryName': 'EN',
+                'eventTimestamps': [1781610000, 1781610400]}),
+        ))
+    detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
+    assert detail['saved_words'] == [{'word': 'Saved', 'dictionary': '-en', 'saved_at': '2026-06-16T12:00:00+00:00'}]
+    assert detail['progress_milestones'] == [{'percent': 25, 'recorded_at': '2026-06-16T11:40:00+00:00'}]
+    assert detail['dictionary_lookups'][0]['recorded_at'] == [
+        '2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00', '2026-06-16T11:46:40+00:00',
+    ]
+    assert detail['reading_seconds'] == 3661
 
 
 def test_book_detail_skips_corrupt_dictionary_event(client, settings):
@@ -906,7 +927,8 @@ def test_book_detail_skips_corrupt_dictionary_event(client, settings):
     assert response.status_code == 200
     assert response.json()["title"] == "Current Book"
     assert response.json()["dictionary_lookups"] == [
-        {"word": "perspicacious", "dictionary": "en"}
+        {"word": "perspicacious", "dictionary": "en",
+         "recorded_at": ['2026-06-16T11:40:00+00:00', '2026-06-16T11:45:00+00:00']}
     ]
 
 

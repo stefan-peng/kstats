@@ -105,6 +105,8 @@ function bookDetail(overrides = {}) {
     ...dashboard.continue_reading[0],
     bookmarks: [],
     dictionary_lookups: [],
+    progress_milestones: [],
+    saved_words: [],
     recent_sessions: [],
     reading_duration: {
       estimated: true,
@@ -185,6 +187,7 @@ function mockFetch() {
             {
               word: "perspicacious",
               dictionary: "en",
+              recorded_at: [],
             },
           ],
         }))

@@ -62,9 +62,18 @@ export interface Bookmark {
 export interface DictionaryLookup {
   word: string
   dictionary: string | null
+  recorded_at: string[]
+}
+
+export interface SavedWord {
+  word: string
+  dictionary: string | null
+  saved_at: string | null
 }
 
 export interface BookDetail extends Book {
+  progress_milestones: Array<{ percent: number; recorded_at: string }>
+  saved_words: SavedWord[]
   recent_sessions: Array<{
     id: string
     ended_at: string

@@ -110,7 +110,10 @@ URL. Bookmark a view to return to it, or use browser Back and Forward to revisit
 filter selections and books. Search typing updates the current history entry.
 Use **Jump to library**, **More filters**, and **Clear all** to navigate the dashboard.
 Book details offer **Copy highlights** and **Download text** for highlights and
-notes, including the book title, author, and recorded timestamps.
+notes, including the book title, author, and recorded timestamps. Book details also
+show retained progress milestone crossings, saved WordList vocabulary, and
+deduplicated dictionary entries with their retained interaction timestamps.
+These are recorded observations, not complete progress or lookup histories.
 
 ## Maintenance
 

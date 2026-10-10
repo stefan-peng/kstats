@@ -5,7 +5,6 @@ import {
   Download,
   Clock3,
   Highlighter,
-  Languages,
   Timer,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -47,6 +46,7 @@ import {
 import { prepareDailyDurationSeries } from "@/lib/reading-duration"
 import type { BookDetail } from "@/types"
 import { BookCover } from "./book-cover"
+import { BookVocabulary, ProgressMilestones } from "./book-history"
 import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
 
@@ -220,6 +220,8 @@ export function BookDetailDialog({
                   </CardContent>
                 </Card>
               )}
+
+              <ProgressMilestones milestones={book.progress_milestones} />
 
               <Card>
                 <CardHeader>
@@ -396,35 +398,7 @@ export function BookDetailDialog({
                 </>
               )}
 
-              {book.dictionary_lookups.length > 0 && (
-                <>
-                  <Separator />
-                  <section className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <Languages className="size-4 text-primary" />
-                      <h3 className="font-medium">
-                        Dictionary lookups ({book.dictionary_lookups.length})
-                      </h3>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {book.dictionary_lookups.map((lookup) => (
-                        <Badge
-                          key={`${lookup.word}-${lookup.dictionary ?? ""}`}
-                          variant="secondary"
-                          className="gap-1.5"
-                        >
-                          {lookup.word}
-                          {lookup.dictionary && (
-                            <span className="text-muted-foreground">
-                              {lookup.dictionary}
-                            </span>
-                          )}
-                        </Badge>
-                      ))}
-                    </div>
-                  </section>
-                </>
-              )}
+              <BookVocabulary words={book.saved_words} lookups={book.dictionary_lookups} />
 
               <Separator />
               <section className="flex flex-col gap-3">
