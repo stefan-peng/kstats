@@ -16,6 +16,11 @@ const dashboard = {
     removed_with_activity: 0,
     merged_removed_history: 0,
   },
+  library_insights: {
+    quality: { dated_finished: 1, undated_finished: 0, active_without_recorded_time: 0, event_time_books: 0, books_with_word_count: 1 },
+    composition: { author: [], source: [], format: [], language: [] },
+  },
+  telemetry_scope: { library_seconds: 1800, unmatched_seconds: 0 },
   monthly_completions: [{ month: "2026-05", count: 1 }],
   reading_duration: {
     estimated: true,
@@ -743,7 +748,7 @@ test.each([true, false])("ignores a stale initial dashboard response (success: %
 test("supports library search and sortable headers on the dashboard", async () => {
   const user = userEvent.setup()
   render(<App />)
-  const bookHeader = (await screen.findAllByRole("columnheader", { name: /Book/ }))[0]
+  const bookHeader = await screen.findByRole("columnheader", { name: "Book" })
   expect(bookHeader).toHaveAttribute("aria-sort", "none")
   expect(bookHeader.closest("tr")).not.toHaveClass("hover:bg-muted/50")
   await user.click(within(bookHeader).getByRole("button"))
@@ -832,7 +837,7 @@ test("filters the embedded library from a selected completion month", async () =
   const user = userEvent.setup()
   render(<App />)
 
-  const [statusFilter] = await screen.findAllByRole("combobox")
+  const statusFilter = await screen.findByRole("combobox", { name: "Reading status" })
   await user.click(statusFilter)
   await user.click(screen.getByRole("option", { name: "In progress" }))
   await waitFor(() => {

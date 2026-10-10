@@ -62,6 +62,7 @@ import { focusLibrary, updateBrowseState, useBrowseValue } from "@/lib/browse-st
 import { cn } from "@/lib/utils"
 import type { DashboardData, DeviceStatus } from "@/types"
 import { LibrarySection } from "./library-page"
+import { ReadingInsights } from "./reading-insights"
 
 type DurationOption = DurationGranularity | "heatmap"
 
@@ -382,7 +383,7 @@ export function OverviewPage({
           <div className="grid gap-1">
             <CardTitle>Reading duration</CardTitle>
             <CardDescription>
-              Estimated from retained telemetry, including books no longer in the library.
+              Estimated from retained telemetry, including content IDs outside the current library.
               {dashboard.reading_duration.unallocated_seconds > 0 && (
                 <> {formatDuration(dashboard.reading_duration.unallocated_seconds)} cannot be assigned reliably to dates.</>
               )}
@@ -484,6 +485,8 @@ export function OverviewPage({
           )}
         </CardContent>
       </Card>
+
+      <ReadingInsights insights={dashboard.library_insights} telemetryScope={dashboard.telemetry_scope} />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>

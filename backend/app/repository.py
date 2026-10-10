@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from .config import Settings
 from .importer import prepare_snapshot
+from .library_insights import library_insights
 from .kobo_events import (
     DICTIONARY_EVENT_TYPE,
     READING_EVENT_TYPE,
@@ -171,6 +172,12 @@ class Repository:
                 """
             ).fetchall()
 
+            library_books = [
+                dict(row) for row in connection.execute("SELECT * FROM kstats_books")
+            ]
+            insights = library_insights(library_books)
+            library_ids = {book["content_id"] for book in library_books}
+            telemetry_scope = {"library_seconds": 0, "unmatched_seconds": 0}
             skipped_reading_rows = 0
             has_event_table = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'Event'"
@@ -178,7 +185,7 @@ class Repository:
             event_rows: Iterable[sqlite3.Row] = (
                 connection.execute(
                     """
-                    SELECT CAST(ExtraData AS BLOB) AS extra_data
+                    SELECT ContentID, CAST(ExtraData AS BLOB) AS extra_data
                     FROM Event
                     WHERE EventType = ?
                     """,
@@ -200,6 +207,8 @@ class Repository:
                     if reading_event is None:
                         skipped_reading_rows += 1
                         continue
+                    key = "library_seconds" if event_row["ContentID"] in library_ids else "unmatched_seconds"
+                    telemetry_scope[key] += reading_event["seconds"]
                     yield reading_event
 
             reading_duration = aggregate_reading_duration(
@@ -235,6 +244,8 @@ class Repository:
             "status_counts": status_counts,
             "monthly_completions": monthly_completions,
             "reading_duration": reading_duration,
+            "telemetry_scope": telemetry_scope,
+            "library_insights": insights,
             "continue_reading": [
                 serialize_book(row, self.covers_dir) for row in continue_rows
             ],

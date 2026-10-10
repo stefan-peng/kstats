@@ -13,6 +13,10 @@ Book reading totals and detailed session records can cover different histories;
 faded heatmap cells indicate missing records, not confirmed days without reading.
 Monthly completions show a continuous 12-month window ending with the latest
 recorded completion month, including months with no recorded completions.
+Reading insights group current-library recorded time by author, source, format,
+or language, with language-region variants combined. Data coverage distinguishes
+undated completions, missing time counters, and telemetry outside current library
+IDs; these are not interpreted as confirmed inactivity or deleted books.
 Remaining time uses recent paired reading sessions when available, with Kobo's
 stored estimate as a fallback. Book details identify the source and sample size.
 See [estimated time remaining](docs/remaining-time.md) for the calculation and limitations.

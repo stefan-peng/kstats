@@ -80,7 +80,29 @@ export interface BookDetail extends Book {
   }
 }
 
+export interface TimeComposition {
+  label: string
+  books: number
+  seconds: number
+  unread_seconds: number
+  reading_seconds: number
+  finished_seconds: number
+}
+
+export interface LibraryInsights {
+  quality: {
+    dated_finished: number
+    undated_finished: number
+    active_without_recorded_time: number
+    event_time_books: number
+    books_with_word_count: number
+  }
+  composition: Record<"author" | "source" | "format" | "language", TimeComposition[]>
+}
+
 export interface DashboardData {
+  library_insights: LibraryInsights
+  telemetry_scope: { library_seconds: number; unmatched_seconds: number }
   totals: {
     library: number
     finished: number

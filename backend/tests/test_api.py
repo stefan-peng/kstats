@@ -76,6 +76,21 @@ def test_startup_import_and_dashboard_exclude_pocket(client):
         ],
     }
     assert "recent_books" not in payload
+    assert payload['telemetry_scope'] == {'library_seconds': 1800, 'unmatched_seconds': 0}
+    assert payload['library_insights']['quality']['dated_finished'] == 1
+    assert sum(row['seconds'] for row in payload['library_insights']['composition']['author']) == 10861
+
+
+def test_dashboard_distinguishes_unmatched_telemetry_without_changing_totals(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute('INSERT INTO Event (EventType, ContentID, ExtraData) VALUES (3, ?, ?)', (
+            'not-in-library', event_payload({'ExtraDataReadingSeconds': 300,
+                'ExtraDataReadingSessions': 1, 'eventTimestamps': [1781653500, 1781653800]}),
+        ))
+    payload = client.get('/api/dashboard').json()
+    assert payload['telemetry_scope'] == {'library_seconds': 1800, 'unmatched_seconds': 300}
+    assert payload['reading_duration']['source_seconds'] == 2100
+    assert payload['totals']['reading_seconds'] == 10861
 
 
 def test_dashboard_uses_requested_timezone(client):
