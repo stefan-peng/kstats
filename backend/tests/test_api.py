@@ -1334,6 +1334,10 @@ def test_session_remaining_time_is_consistent_across_views_sorting_and_paginatio
     assert detail['remaining_estimate_sessions'] == 1
     assert detail['remaining_estimate_reading_seconds'] == 240
     assert detail['remaining_estimate_progress'] == 2
+    assert detail['progress_pace'] == {
+        'seconds_per_percent': 120, 'sample_min': 120, 'sample_max': 120,
+        'sample_count': 1, 'latest_sample_at': '2026-09-28T12:04:00+00:00',
+    }
     assert detail['current_chapter_estimate_seconds'] == 4060
     assert detail['rest_of_book_estimate_seconds'] == 11507
 

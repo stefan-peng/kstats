@@ -2,7 +2,7 @@ import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 
-from backend.app.remaining_estimate import estimate_remaining
+from backend.app.remaining_estimate import estimate_remaining, progress_pace
 
 
 def database():
@@ -34,7 +34,9 @@ def test_estimate_filters_jumps_and_speed_outliers_without_mutating_kobo():
     session(connection, 0, 17, 293)  # Progress reset/navigation jump.
     result = estimate_remaining(connection)['book']
     assert result == {'seconds': 9600, 'sample_sessions': 3, 'sample_seconds': 720,
-                      'sample_progress': 6, 'rejected_sessions': 2}
+                      'sample_progress': 6, 'rejected_sessions': 2,
+                      'sample_rates': [120.0, 120.0, 120.0],
+                      'sample_latest_at': '2026-09-01T04:04:00+00:00'}
     assert connection.execute('SELECT percent_read FROM kstats_books').fetchone()[0] == 20
 
 
@@ -125,6 +127,37 @@ def test_oversized_reported_seconds_do_not_break_snapshot_processing():
     connection.execute("UPDATE AnalyticsEvents SET Metrics = ? WHERE Type = 'LeaveContent'",
                        (json.dumps({'SecondsRead': 1 << 4096, 'PagesTurned': 40}),))
     assert estimate_remaining(connection)['book']['seconds'] is None
+
+
+def test_progress_pace_reports_observed_spread_and_session_freshness():
+    connection = database()
+    session(connection, 0, 2, 240)
+    session(connection, 2, 4, 360)
+    pace = progress_pace(connection, {
+        'content_id': 'book', 'remaining_estimate_source': 'sessions',
+        'remaining_estimate_reading_seconds': 600, 'remaining_estimate_progress': 4,
+    })
+    assert pace == {
+        'seconds_per_percent': 150, 'sample_min': 120, 'sample_max': 180,
+        'sample_count': 2, 'latest_sample_at': '2026-09-01T02:06:00+00:00',
+    }
+
+
+def test_import_interval_pace_has_no_invented_sample_date_and_excludes_outliers():
+    connection = database()
+    connection.executescript('''
+        CREATE TABLE kstats_reading_samples (id INTEGER PRIMARY KEY, content_id TEXT, seconds INTEGER, progress REAL);
+        INSERT INTO kstats_reading_samples (content_id,seconds,progress) VALUES ('book',120,1),('book',240,2),('book',12000,1);
+    ''')
+    pace = progress_pace(connection, {
+        'content_id': 'book', 'remaining_estimate_source': 'observations',
+        'remaining_estimate_reading_seconds': 360, 'remaining_estimate_progress': 3,
+    })
+    assert pace['seconds_per_percent'] == 120
+    assert pace['sample_min'] == pace['sample_max'] == 120
+    assert pace['sample_count'] == 2
+    assert pace['latest_sample_at'] is None
+    assert progress_pace(connection, {'remaining_estimate_source': 'kobo'}) is None
 
 
 def test_archive_pairs_adjacent_sessions_despite_hashed_id_order():

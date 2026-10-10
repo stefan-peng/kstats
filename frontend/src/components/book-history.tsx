@@ -1,8 +1,22 @@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatDateTime } from "@/lib/format"
+import { formatDateTime, formatNumber } from "@/lib/format"
 import type { BookDetail } from "@/types"
+
+export function ProgressPace({ pace }: { pace: BookDetail["progress_pace"] }) {
+  if (!pace) return null
+  return (
+    <div className="mt-3 grid gap-1">
+      <p>Observed progress pace: {formatNumber(Math.round(pace.seconds_per_percent))}s per percentage point.</p>
+      <p>{pace.sample_count > 1
+        ? `Accepted sample spread: ${formatNumber(Math.round(pace.sample_min))}–${formatNumber(Math.round(pace.sample_max))}s per percentage point. Not a confidence interval.`
+        : "Only one usable sample; pace variability is unknown."}</p>
+      <p>{pace.latest_sample_at ? `Latest accepted session: ${formatDateTime(pace.latest_sample_at)}.` : "Sample dates are unavailable for retained import intervals."}</p>
+      <p>Rounded book progress can include navigation. This is not words or pages per minute.</p>
+    </div>
+  )
+}
 
 export function ProgressMilestones({ milestones }: { milestones: BookDetail["progress_milestones"] }) {
   if (milestones.length === 0) return null

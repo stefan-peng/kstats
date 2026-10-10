@@ -107,6 +107,7 @@ function bookDetail(overrides = {}) {
     dictionary_lookups: [],
     progress_milestones: [],
     saved_words: [],
+    progress_pace: null,
     recent_sessions: [],
     reading_duration: {
       estimated: true,

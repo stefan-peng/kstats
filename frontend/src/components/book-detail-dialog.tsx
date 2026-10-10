@@ -41,7 +41,7 @@ import {
 import { prepareDailyDurationSeries } from "@/lib/reading-duration"
 import type { BookDetail } from "@/types"
 import { BookCover } from "./book-cover"
-import { BookVocabulary, ProgressMilestones } from "./book-history"
+import { BookVocabulary, ProgressMilestones, ProgressPace } from "./book-history"
 import { BookNotes } from "./book-notes"
 import { FormattedText } from "./formatted-text"
 import { StatusBadge } from "./status-badge"
@@ -325,6 +325,7 @@ export function BookDetailDialog({
                   {book.remaining_estimate_source === "sessions" || book.remaining_estimate_source === "observations" ? (
                     <CardContent className="text-sm text-muted-foreground">
                       <p>{book.remaining_estimate_sessions} {book.remaining_estimate_source === "observations" ? (book.remaining_estimate_sessions === 1 ? "reading interval" : "reading intervals") : (book.remaining_estimate_sessions === 1 ? "session" : "sessions")} · {formatDuration(book.remaining_estimate_reading_seconds)} recorded · {book.remaining_estimate_progress}% progress.</p>
+                      <ProgressPace pace={book.progress_pace} />
                     </CardContent>
                   ) : (
                     <CardContent className="grid gap-3 text-sm sm:grid-cols-2">

@@ -74,6 +74,13 @@ export interface SavedWord {
 export interface BookDetail extends Book {
   progress_milestones: Array<{ percent: number; recorded_at: string }>
   saved_words: SavedWord[]
+  progress_pace: {
+    seconds_per_percent: number
+    sample_min: number
+    sample_max: number
+    sample_count: number
+    latest_sample_at: string | null
+  } | null
   recent_sessions: Array<{
     id: string
     ended_at: string

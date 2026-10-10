@@ -22,6 +22,7 @@ from .kobo_events import (
     parse_reading_event,
 )
 from .reading_duration import aggregate_reading_duration
+from .remaining_estimate import progress_pace
 from .resume_reading import resume_reading
 from .source_processing import (
     DISPLAYABLE_BOOKMARK_FILTER,
@@ -395,6 +396,7 @@ class Repository:
             recent_sessions = self._recent_sessions(connection, content_id)
             milestones = progress_milestones(connection, content_id)
             vocabulary = saved_words(connection, content_id)
+            pace = progress_pace(connection, dict(row))
             bookmark_rows = connection.execute(
                 """
                 SELECT BookmarkID AS id, Text AS text, Annotation AS annotation,
@@ -485,6 +487,7 @@ class Repository:
         book["recent_sessions"] = recent_sessions
         book["progress_milestones"] = milestones
         book["saved_words"] = vocabulary
+        book["progress_pace"] = pace
         return book
 
     @staticmethod

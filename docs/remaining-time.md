@@ -10,6 +10,13 @@ For either kind of estimate, rates from the latest ten candidates must be within
 
 When no usable rate is available, the app falls back to Kobo's nonnegative current-chapter plus rest-of-book estimate. Missing values display as a dash. Chapter estimates are shown only for the Kobo fallback. Lifetime reading time divided by current progress is never used as a fallback.
 
+Book details additionally show observed seconds per percentage point, the
+minimum/maximum accepted-sample pace, and the latest accepted session timestamp.
+The spread is descriptive, not a confidence interval or prediction range. A
+single sample explicitly reports unknown variability. Retained import-interval
+samples have no stored dates, so their freshness remains unknown. Pace is never
+presented as words or pages per minute.
+
 Whole-percent rounding, navigation that passes the checks, telemetry retention, counter lag and changing speed can affect the result. These filters are heuristics, not validated Kobo specifications or confidence bounds. A single sample cannot be checked against other reading speeds. The app cannot recover sessions cleared before it observed them.
 
 # Recorded reading time

@@ -13,6 +13,8 @@ class RemainingEstimate(TypedDict):
     sample_seconds: int
     sample_progress: float
     rejected_sessions: int
+    sample_rates: list[float]
+    sample_latest_at: str | None
 
 
 def _rows(connection: sqlite3.Connection, query: str) -> list[dict]:
@@ -34,6 +36,7 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
         book['content_id']: {
             'seconds': None, 'sample_sessions': 0, 'sample_seconds': 0,
             'sample_progress': 0, 'rejected_sessions': 0,
+            'sample_rates': [], 'sample_latest_at': None,
         } for book in books
     }
     events_table = 'kstats_session_events' if connection.execute(
@@ -47,7 +50,7 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
     if connection.execute("SELECT 1 FROM sqlite_master WHERE name='kstats_reading_resets' AND type='table'").fetchone():
         resets = {content_id: datetime.fromisoformat(reset_at) for content_id, reset_at in
                   connection.execute('SELECT content_id, reset_at FROM kstats_reading_resets')}
-    samples: dict[str, list[tuple[int, float]]] = {book['content_id']: [] for book in books}
+    samples: dict[str, list[tuple[int, float, datetime]]] = {book['content_id']: [] for book in books}
     pending = None
     for row in _rows(connection, f"""
         SELECT Type, Timestamp, Attributes, Metrics FROM {events_table}
@@ -96,7 +99,7 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
         if not math.isfinite(rate) or rate * 100 > 2**63 - 1:
             result[content_id]['rejected_sessions'] += 1
             continue
-        samples[content_id].append((seconds, delta))
+        samples[content_id].append((seconds, delta, timestamp))
     for book in books:
         content_id = book['content_id']
         candidates = samples[content_id][-10:]
@@ -104,18 +107,52 @@ def estimate_remaining(connection: sqlite3.Connection) -> dict[str, RemainingEst
             continue
         # Center multiplicative rates in log space. Two conflicting samples
         # should not preferentially select the slower one as the ordinary median does.
-        center = math.exp(median(math.log(seconds / delta) for seconds, delta in candidates))
-        accepted = [(seconds, delta) for seconds, delta in candidates
+        center = math.exp(median(math.log(seconds / delta) for seconds, delta, _ in candidates))
+        accepted = [(seconds, delta, timestamp) for seconds, delta, timestamp in candidates
                     if center / 3 <= seconds / delta <= center * 3]
         output = result[content_id]
         output['rejected_sessions'] += len(candidates) - len(accepted)
         output['sample_sessions'] = len(accepted)
-        output['sample_seconds'] = sum(seconds for seconds, _ in accepted)
-        output['sample_progress'] = sum(delta for _, delta in accepted)
+        output['sample_seconds'] = sum(seconds for seconds, _, _ in accepted)
+        output['sample_progress'] = sum(delta for _, delta, _ in accepted)
+        output['sample_rates'] = [seconds / delta for seconds, delta, _ in accepted]
+        output['sample_latest_at'] = max(timestamp for _, _, timestamp in accepted).isoformat() if accepted else None
         if book['read_status'] == 1 and 0 < book['percent_read'] < 100 and accepted:
             output['seconds'] = round(output['sample_seconds'] / output['sample_progress']
                                       * (100 - book['percent_read']))
     return result
+
+
+def _accepted_interval_samples(connection: sqlite3.Connection, content_id: str) -> list[tuple[int, float]]:
+    candidates = list(connection.execute(
+        'SELECT seconds, progress FROM kstats_reading_samples WHERE content_id=? ORDER BY id DESC LIMIT 10',
+        (content_id,),
+    ))
+    if not candidates:
+        return []
+    center = math.exp(median(math.log(s / p) for s, p in candidates))
+    return [(s, p) for s, p in candidates if center / 3 <= s / p <= center * 3]
+
+
+def progress_pace(connection: sqlite3.Connection, book: dict) -> dict | None:
+    """Observed accepted-sample spread, not a prediction or confidence interval."""
+    source = book['remaining_estimate_source']
+    if source not in ('sessions', 'observations') or book['remaining_estimate_progress'] <= 0:
+        return None
+    latest = None
+    if source == 'sessions':
+        estimate = estimate_remaining(connection)[book['content_id']]
+        rates = estimate['sample_rates']
+        latest = estimate['sample_latest_at']
+    else:
+        rates = [seconds / progress for seconds, progress in _accepted_interval_samples(connection, book['content_id'])]
+    if not rates:
+        return None
+    return {
+        'seconds_per_percent': book['remaining_estimate_reading_seconds'] / book['remaining_estimate_progress'],
+        'sample_min': min(rates), 'sample_max': max(rates),
+        'sample_count': len(rates), 'latest_sample_at': latest,
+    }
 
 
 def apply_remaining_estimates(connection: sqlite3.Connection) -> None:
@@ -126,13 +163,8 @@ def apply_remaining_estimates(connection: sqlite3.Connection) -> None:
         seconds = estimate['seconds']
         source = 'sessions' if seconds is not None else None
         if seconds is None and book['read_status'] == 1:
-            candidates = list(connection.execute(
-                'SELECT seconds, progress FROM kstats_reading_samples WHERE content_id=? ORDER BY id DESC LIMIT 10',
-                (book['content_id'],),
-            ))
-            if candidates:
-                center = math.exp(median(math.log(s / p) for s, p in candidates))
-                accepted = [(s, p) for s, p in candidates if center / 3 <= s / p <= center * 3]
+            accepted = _accepted_interval_samples(connection, book['content_id'])
+            if accepted:
                 progress = connection.execute('SELECT percent_read FROM kstats_books WHERE content_id=?',
                                               (book['content_id'],)).fetchone()[0]
                 if accepted and 0 < progress < 100:
