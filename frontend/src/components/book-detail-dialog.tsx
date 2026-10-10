@@ -202,7 +202,7 @@ export function BookDetailDialog({
                   <CardHeader>
                     <CardTitle>Recent Kobo sessions</CardTitle>
                     <CardDescription>
-                      Durations logged when leaving a book; recent records only.
+                      Up to 20 archived records logged when leaving this book, not a complete history. Not added to reading totals.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

@@ -1511,6 +1511,7 @@ test("shows explicit recent sessions separately from undated aggregate telemetry
   await user.click(await screen.findByRole("row", { name: /Current Book Ada Reader/ }))
   const dialog = await screen.findByRole("dialog")
   expect(within(dialog).getByText("Recent Kobo sessions")).toBeVisible()
+  expect(within(dialog).getByText(/Up to 20 archived records/)).toBeVisible()
   expect(within(dialog).getByText("154s · 9 page turns")).toBeVisible()
   expect(within(dialog).getByText(/9s cannot be assigned reliably to dates/)).toBeVisible()
   expect(within(dialog).getByText("Daily reading time is unavailable for this telemetry.")).toBeVisible()

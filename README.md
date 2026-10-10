@@ -6,6 +6,9 @@ read-only dashboard for books, progress, reading time, completion dates, and
 highlights. The overview also charts estimated reading duration by day, week,
 or month using Kobo's aggregated session telemetry. The chart preserves Kobo's
 reported duration totals, but its historical date allocation is approximate.
+Book details show up to 20 archived session durations, matched by content ID or
+an exact title/author pair only when unique. These are retained records, not a
+complete session history, and are not added to aggregate reading totals.
 Book reading totals and detailed session records can cover different histories;
 faded heatmap cells indicate missing records, not confirmed days without reading.
 Monthly completions show a continuous 12-month window ending with the latest

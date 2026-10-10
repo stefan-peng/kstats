@@ -1201,10 +1201,6 @@ def test_macos_copy_recovers_hot_rollback_journal_locally(tmp_path, monkeypatch)
 
 def test_book_reads_explicit_recent_sessions_without_double_counting(client, settings):
     with sqlite3.connect(settings.snapshot_db) as connection:
-        connection.execute(
-            "CREATE TABLE AnalyticsEvents (Id TEXT, Type TEXT, Timestamp TEXT, "
-            "Attributes TEXT, Metrics TEXT)"
-        )
         rows = [
             ('valid', 'LeaveContent', '2026-09-27T03:22:36Z',
              json.dumps({'volumeid': 'book-reading'}),
@@ -1220,7 +1216,7 @@ def test_book_reads_explicit_recent_sessions_without_double_counting(client, set
             ('open', 'OpenContent', '2026-09-27T03:22:36Z',
              json.dumps({'volumeid': 'book-reading'}), json.dumps({'SecondsRead': 154})),
         ]
-        connection.executemany('INSERT INTO AnalyticsEvents VALUES (?, ?, ?, ?, ?)', rows)
+        connection.executemany('INSERT INTO kstats_session_events VALUES (?, ?, ?, ?, ?)', rows)
     detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
     assert detail['recent_sessions'] == [{
         'id': 'valid', 'ended_at': '2026-09-27T03:22:36+00:00',
@@ -1228,6 +1224,43 @@ def test_book_reads_explicit_recent_sessions_without_double_counting(client, set
     }]
     assert detail['reading_duration']['source_seconds'] == 1800
     assert detail['reading_seconds'] == 3661
+
+
+def test_recent_sessions_use_archived_unique_names_and_never_override_ids(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        for event_id, attributes in [
+            ('named', {'title': 'Current Book', 'author': 'Ada Reader'}),
+            ('wrong-id', {'volumeid': 'missing', 'title': 'Current Book', 'author': 'Ada Reader'}),
+        ]:
+            connection.execute('INSERT INTO kstats_session_events VALUES (?,?,?,?,?)', (
+                event_id, 'LeaveContent', '2026-09-27T03:22:36Z',
+                json.dumps(attributes), json.dumps({'SecondsRead': 154}),
+            ))
+    detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
+    assert [s['id'] for s in detail['recent_sessions']] == ['named']
+    insert_book(settings.snapshot_db, content_id='duplicate', title='Current Book',
+                book_title='Current Book', downloaded=1)
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        connection.execute("UPDATE content SET Attribution='Ada Reader' WHERE ContentID='duplicate'")
+    detail = client.get('/api/book', params={'content_id': 'book-reading'}).json()
+    assert detail['recent_sessions'] == []
+
+
+def test_recent_sessions_limit_by_actual_timestamp_and_survive_live_event_removal(client, settings):
+    with sqlite3.connect(settings.snapshot_db) as connection:
+        for index in range(25):
+            connection.execute('INSERT INTO kstats_session_events VALUES (?,?,?,?,?)', (
+                str(index), 'LeaveContent', f'2026-09-{index + 1:02d}T03:00:00Z',
+                json.dumps({'volumeid': 'book-reading'}), json.dumps({'SecondsRead': 120}),
+            ))
+        connection.execute('INSERT INTO kstats_session_events VALUES (?,?,?,?,?)', (
+            'offset', 'LeaveContent', '2026-09-25T01:00:00-04:00',
+            json.dumps({'volumeid': 'book-reading'}), json.dumps({'SecondsRead': 120}),
+        ))
+    sessions = client.get('/api/book', params={'content_id': 'book-reading'}).json()['recent_sessions']
+    assert len(sessions) == 20
+    assert [s['id'] for s in sessions[:2]] == ['offset', '24']
+    assert sessions[-1]['id'] == '6'
 
 
 def test_session_remaining_time_is_consistent_across_views_sorting_and_pagination(client, settings):

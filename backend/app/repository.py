@@ -465,20 +465,35 @@ class Repository:
     def _recent_sessions(connection: sqlite3.Connection, content_id: str) -> list[dict[str, Any]]:
         """Read explicit LeaveContent durations without adding them to Event totals."""
         if not connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'AnalyticsEvents'"
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kstats_session_events'"
         ).fetchone():
             return []
+        book = connection.execute(
+            "SELECT title, author FROM kstats_books WHERE content_id = ?", (content_id,)
+        ).fetchone()
+        if book is None:
+            return []
+        name_is_unique = connection.execute(
+            "SELECT COUNT(*) FROM kstats_books WHERE title = ? AND author = ?",
+            (book["title"], book["author"]),
+        ).fetchone()[0] == 1
         sessions = []
         for row in connection.execute(
-            "SELECT Id, Timestamp, Attributes, Metrics FROM AnalyticsEvents "
-            "WHERE Type = 'LeaveContent' ORDER BY Timestamp DESC, Id"
+            "SELECT Id, Timestamp, Attributes, Metrics FROM kstats_session_events "
+            "WHERE Type = 'LeaveContent'"
         ):
             try:
                 attributes = json.loads(row["Attributes"])
                 metrics = json.loads(row["Metrics"])
                 if not isinstance(attributes, dict) or not isinstance(metrics, dict):
                     continue
-                if attributes.get("volumeid") != content_id:
+                event_id = attributes.get("volumeid")
+                if event_id is None:
+                    if not name_is_unique or (
+                        attributes.get("title"), attributes.get("author")
+                    ) != (book["title"], book["author"]):
+                        continue
+                elif event_id != content_id:
                     continue
                 timestamp = datetime.fromisoformat(row["Timestamp"].replace("Z", "+00:00"))
                 if timestamp.tzinfo is None:
@@ -486,7 +501,7 @@ class Repository:
             except (TypeError, ValueError, AttributeError):
                 continue
             seconds = metrics.get("SecondsRead")
-            if type(seconds) is not int or seconds <= 0:
+            if type(seconds) is not int or not 0 < seconds <= 2**63 - 1:
                 continue
             pages = metrics.get("PagesTurned")
             sessions.append({
@@ -495,6 +510,8 @@ class Repository:
                 "seconds": seconds,
                 "pages_turned": pages if type(pages) is int and pages >= 0 else None,
             })
-            if len(sessions) == 20:
-                break
-        return sessions
+        sessions.sort(
+            key=lambda session: (datetime.fromisoformat(session["ended_at"]), session["id"]),
+            reverse=True,
+        )
+        return sessions[:20]
