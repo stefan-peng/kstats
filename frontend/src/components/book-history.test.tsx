@@ -13,7 +13,7 @@ test("shows repeated milestones as observations without inventing continuous pro
   const timeline = screen.getByRole("list", { name: "Progress milestone timeline" })
   expect(within(timeline).getAllByRole("listitem")).toHaveLength(3)
   expect(within(timeline).getAllByText("25%")).toHaveLength(2)
-  expect(screen.getByText(/gaps are not active reading time/)).toBeVisible()
+  expect(screen.getByText("Progress milestones")).toBeVisible()
 })
 
 test("distinguishes saved vocabulary from retained lookup interactions", () => {
@@ -23,22 +23,23 @@ test("distinguishes saved vocabulary from retained lookup interactions", () => {
   }} />)
   expect(screen.getByText("Saved vocabulary (1)")).toBeVisible()
   expect(screen.getByText("Dictionary activity")).toBeVisible()
-  expect(screen.getByText("2 distinct retained dictionary timestamps for this book, not per-word counts.")).toBeVisible()
-  expect(screen.getByText(/Earlier timestamps may refer to different words/)).toBeVisible()
+  expect(screen.getByText("2 distinct timestamps")).toBeVisible()
+  expect(screen.getByText("Timestamps are book-level, not per word.")).toBeVisible()
   expect(screen.getAllByRole("table")).toHaveLength(2)
 })
 
 test("reports observed pace variability without claiming confidence bounds", () => {
   render(<ProgressPace pace={{ seconds_per_percent: 150, sample_min: 120, sample_max: 180, sample_count: 2, latest_sample_at: "2026-10-10T12:00:00Z" }} />)
-  expect(screen.getByText("Observed progress pace: 150s per percentage point.")).toBeVisible()
-  expect(screen.getByText(/120–180s per percentage point. Not a confidence interval/)).toBeVisible()
-  expect(screen.getByText(/Latest accepted session:/)).toBeVisible()
+  expect(screen.getByText("Observed pace: 150s per 1% progress.")).toBeVisible()
+  expect(screen.getByText("Sample range: 120–180s per 1% progress.")).toBeVisible()
+  expect(screen.getByText(/Last sample:/)).toBeVisible()
 })
 
-test("identifies single samples and missing interval dates", () => {
+test("omits a range for single samples and does not invent missing dates", () => {
   render(<ProgressPace pace={{ seconds_per_percent: 120, sample_min: 120, sample_max: 120, sample_count: 1, latest_sample_at: null }} />)
-  expect(screen.getByText("Only one usable sample; pace variability is unknown.")).toBeVisible()
-  expect(screen.getByText("Sample dates are unavailable for retained import intervals.")).toBeVisible()
+  expect(screen.getByText("Observed pace: 120s per 1% progress.")).toBeVisible()
+  expect(screen.queryByText(/Sample range:/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Last sample:/)).not.toBeInTheDocument()
 })
 
 test("does not fabricate empty histories", () => {

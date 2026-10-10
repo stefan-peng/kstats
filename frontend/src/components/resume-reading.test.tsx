@@ -24,12 +24,12 @@ test("shows snapshot-relative inactivity and opens shortest-estimate books", asy
     { ...book, days_since_read: 70 },
     { ...book, content_id: "unknown", title: "Unknown Book", days_since_read: null, remaining_seconds: 0 },
   ] }} onOpenBook={onOpenBook} />)
-  expect(screen.getByText(/Days since last recorded reading do not establish abandonment/)).toBeVisible()
+  expect(screen.getByText("As of Oct 10, 2026")).toBeVisible()
   const table = screen.getByRole("table")
   expect(screen.getByRole("region", { name: "Scrollable in-progress books" })).toHaveAttribute("tabindex", "0")
   expect(within(table).getByText("70")).toBeVisible()
   expect(within(table).getByText("Unknown")).toBeVisible()
-  expect(screen.getByText("10m estimated · Kobo")).toBeVisible()
+  expect(screen.getByText("10m est. · Kobo")).toBeVisible()
   await user.click(within(table).getByRole("button", { name: "Old Book" }))
   expect(onOpenBook).toHaveBeenCalledWith("old")
   expect(screen.getByRole("heading", { name: "Shortest remaining estimates" })).toBeVisible()
@@ -37,6 +37,6 @@ test("shows snapshot-relative inactivity and opens shortest-estimate books", asy
 
 test("does not invent a snapshot date or remaining estimates", () => {
   render(<ResumeReading data={{ as_of: null, books: [] }} onOpenBook={vi.fn()} />)
-  expect(screen.getByText(/unknown snapshot date/)).toBeVisible()
+  expect(screen.getByText("Snapshot date unavailable")).toBeVisible()
   expect(screen.queryByText("Shortest remaining estimates")).not.toBeInTheDocument()
 })

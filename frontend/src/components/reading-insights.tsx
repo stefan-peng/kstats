@@ -21,15 +21,14 @@ export function ReadingInsights({ insights, telemetryScope }: {
   const [dimension, setDimension] = useState<keyof typeof dimensions>("author")
   const allRows = insights.composition[dimension]
   const rows = allRows.filter((row) => row.seconds > 0).slice(0, 10)
-  const total = allRows.reduce((sum, row) => sum + row.seconds, 0)
   const quality = insights.quality
   return (
     <section className="grid gap-5 xl:grid-cols-[1.5fr_0.9fr]" aria-label="Reading insights">
       <Card>
         <CardHeader>
-          <CardTitle>Where reading time goes</CardTitle>
+          <CardTitle>Library reading time</CardTitle>
           <CardDescription>
-            Current-library recorded totals, stacked by current book status. Top 10 groups; {formatDuration(total)} across all groups.
+            Top 10 groups, split by current status.
           </CardDescription>
           <CardAction>
             <Select value={dimension} onValueChange={(value) => setDimension(value as keyof typeof dimensions)}>
@@ -54,7 +53,7 @@ export function ReadingInsights({ insights, telemetryScope }: {
             </ChartContainer>
           )}
           <Table className="table-fixed">
-            <TableCaption>{rows.length ? "Recorded time is not necessarily complete lifetime reading." : "No positive recorded reading time."}</TableCaption>
+            {rows.length === 0 && <TableCaption>No recorded time.</TableCaption>}
             <TableHeader><TableRow><TableHead className="w-1/2">{dimensions[dimension]}</TableHead><TableHead className="w-1/5 text-right">Books</TableHead><TableHead className="whitespace-normal text-right">Recorded time</TableHead></TableRow></TableHeader>
             <TableBody>{rows.map((row) => <TableRow key={row.label}><TableCell className="whitespace-normal break-words">{row.label}</TableCell><TableCell className="text-right">{formatNumber(row.books)}</TableCell><TableCell className="text-right">{formatDuration(row.seconds)}</TableCell></TableRow>)}</TableBody>
           </Table>
@@ -62,17 +61,16 @@ export function ReadingInsights({ insights, telemetryScope }: {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>What the records cover</CardTitle>
-          <CardDescription>Missing records are unknown, not evidence of no reading.</CardDescription>
+          <CardTitle>Data coverage</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-4 text-sm">
-            <div><dt className="text-muted-foreground">Completion dates</dt><dd>{formatNumber(quality.dated_finished)} dated · {formatNumber(quality.undated_finished)} missing or unusable</dd></div>
-            <div><dt className="text-muted-foreground">Started or finished with no recorded time</dt><dd>{formatNumber(quality.active_without_recorded_time)} books</dd></div>
-            <div><dt className="text-muted-foreground">Reading totals substituted from telemetry</dt><dd>{formatNumber(quality.event_time_books)} {quality.event_time_books === 1 ? "book" : "books"} · retained coverage, not lifetime time</dd></div>
+            <div><dt className="text-muted-foreground">Completion dates</dt><dd>{formatNumber(quality.dated_finished)} dated · {formatNumber(quality.undated_finished)} undated</dd></div>
+            <div><dt className="text-muted-foreground">In progress / finished without recorded time</dt><dd>{formatNumber(quality.active_without_recorded_time)} books</dd></div>
+            <div><dt className="text-muted-foreground">Totals from telemetry</dt><dd>{formatNumber(quality.event_time_books)} {quality.event_time_books === 1 ? "book" : "books"}</dd></div>
             <div><dt className="text-muted-foreground">Books with word counts</dt><dd>{formatNumber(quality.books_with_word_count)}</dd></div>
-            <div><dt className="text-muted-foreground">Telemetry matched to current library IDs</dt><dd>{formatDuration(telemetryScope.library_seconds)}</dd></div>
-            <div><dt className="text-muted-foreground">Telemetry outside current library IDs</dt><dd>{formatDuration(telemetryScope.unmatched_seconds)} · may include removed or differently identified content</dd></div>
+            <div><dt className="text-muted-foreground">Matched reading telemetry</dt><dd>{formatDuration(telemetryScope.library_seconds)}</dd></div>
+            <div><dt className="text-muted-foreground">Unmatched reading telemetry</dt><dd>{formatDuration(telemetryScope.unmatched_seconds)}</dd></div>
           </dl>
         </CardContent>
       </Card>

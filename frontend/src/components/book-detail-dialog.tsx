@@ -196,9 +196,9 @@ export function BookDetailDialog({
               {book.recent_sessions.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recent Kobo sessions</CardTitle>
+                    <CardTitle>Recent sessions</CardTitle>
                     <CardDescription>
-                      Up to 20 archived records logged when leaving this book, not a complete history. Not added to reading totals. Pace-sample checks are heuristics, not proof of reading.
+                      Retained records, not a complete history.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -209,8 +209,8 @@ export function BookDetailDialog({
                           <dd>
                             <p>{formatNumber(session.seconds)}s
                             {session.pages_turned !== null && ` · ${formatNumber(session.pages_turned)} page turns`}</p>
-                            {session.started_at && <p className="text-xs text-muted-foreground">Paired opening: {formatDateTime(session.started_at)}</p>}
-                            {session.progress_change !== null && <p className="text-xs text-muted-foreground">{formatNumber(session.progress_change)} percentage points observed</p>}
+                            {session.started_at && <p className="text-xs text-muted-foreground">Opened: {formatDateTime(session.started_at)}</p>}
+                            {session.progress_change !== null && <p className="text-xs text-muted-foreground">{formatNumber(session.progress_change)} percentage points</p>}
                             <p className="text-xs text-muted-foreground">{session.pace_reason}</p>
                           </dd>
                         </div>
@@ -226,9 +226,9 @@ export function BookDetailDialog({
                 <CardHeader>
                   <CardTitle>Recorded reading activity</CardTitle>
                   <CardDescription>
-                    {formatDuration(book.reading_duration.source_seconds)} in retained telemetry; daily split estimated.
+                    {formatDuration(book.reading_duration.source_seconds)} recorded · Estimated daily split.
                     {book.reading_duration.unallocated_seconds > 0 && (
-                      <> {formatDuration(book.reading_duration.unallocated_seconds)} cannot be assigned reliably to dates.</>
+                      <> {formatDuration(book.reading_duration.unallocated_seconds)} undated.</>
                     )}
                   </CardDescription>
                 </CardHeader>

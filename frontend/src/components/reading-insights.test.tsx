@@ -15,8 +15,8 @@ const insights: LibraryInsights = {
 test("exposes provenance and changes time grouping with accessible tabular values", async () => {
   const user = userEvent.setup()
   render(<ReadingInsights insights={insights} telemetryScope={{ library_seconds: 1800, unmatched_seconds: 3600 }} />)
-  expect(screen.getByText("38 dated · 10 missing or unusable")).toBeVisible()
-  expect(screen.getByText(/1 book · retained coverage/)).toBeVisible()
+  expect(screen.getByText("38 dated · 10 undated")).toBeVisible()
+  expect(screen.getByText("1 book")).toBeVisible()
   const table = screen.getByRole("table")
   expect(within(table).getByText("Ada Reader")).toBeVisible()
   expect(within(table).getByText("2h")).toBeVisible()
@@ -35,5 +35,5 @@ test("labels all ten plotted groups rather than silently skipping alternating la
 
 test("handles an empty library without fabricating reading time", () => {
   render(<ReadingInsights insights={{ ...insights, composition: { author: [], source: [], format: [], language: [] } }} telemetryScope={{ library_seconds: 0, unmatched_seconds: 0 }} />)
-  expect(screen.getByText("No positive recorded reading time.")).toBeVisible()
+  expect(screen.getByText("No recorded time.")).toBeVisible()
 })

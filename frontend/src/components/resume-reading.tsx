@@ -20,9 +20,9 @@ export function ResumeReading({ data, onOpenBook }: {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Pick up a book</CardTitle>
+        <CardTitle>Resume reading</CardTitle>
         <CardDescription>
-          In-progress books as of {data.as_of ? formatDate(data.as_of) : "an unknown snapshot date"}. Days since last recorded reading do not establish abandonment.
+          {data.as_of ? `As of ${formatDate(data.as_of)}` : "Snapshot date unavailable"}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5 lg:grid-cols-2">
@@ -31,7 +31,7 @@ export function ResumeReading({ data, onOpenBook }: {
             <ChartContainer config={{ books: { label: "Books", color: "var(--chart-1)" } }} className="h-56 w-full aspect-auto" aria-label="Book progress versus days since last recorded reading">
               <ScatterChart accessibilityLayer margin={{ top: 12, right: 16, bottom: 22, left: 4 }}>
                 <CartesianGrid />
-                <XAxis type="number" dataKey="days_since_read" name="Days since last read" allowDecimals={false} label={{ value: "Days since last recorded reading", position: "bottom", offset: 4 }} />
+                <XAxis type="number" dataKey="days_since_read" name="Days since last read" allowDecimals={false} label={{ value: "Days since last read", position: "bottom", offset: 4 }} />
                 <YAxis type="number" dataKey="percent_read" name="Progress" domain={[0, 100]} unit="%" width={44} />
                 <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, payload) => payload[0]?.payload.title} formatter={(value, name) => <span>{name}: {value}{name === "Progress" ? "%" : " days"}</span>} />} />
                 <Scatter name="Books" data={dated} fill="var(--color-books)" isAnimationActive={false} />
@@ -44,25 +44,24 @@ export function ResumeReading({ data, onOpenBook }: {
               {finishSoon.map((book) => (
                 <div key={book.content_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <Button variant="link" className="h-auto max-w-full justify-start whitespace-normal px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button>
-                  <span className="text-muted-foreground">{formatDuration(book.remaining_seconds)} estimated · {estimateSource(book.remaining_estimate_source)}</span>
+                  <span className="text-muted-foreground">{formatDuration(book.remaining_seconds)} est. · {estimateSource(book.remaining_estimate_source)}</span>
                 </div>
               ))}
-              <p className="text-xs text-muted-foreground">Estimates can be based on sparse or old records. Book details show sample coverage.</p>
             </div>
           )}
-          {data.books.length === 0 && <p className="text-sm text-muted-foreground">No books are currently marked as in progress.</p>}
+          {data.books.length === 0 && <p className="text-sm text-muted-foreground">Nothing in progress.</p>}
         </div>
         <div className="max-h-96 overflow-y-auto" role="region" aria-label="Scrollable in-progress books" tabIndex={0}>
-        <Table className="table-fixed">
-          <TableHeader><TableRow><TableHead className="w-1/2">Book</TableHead><TableHead className="w-1/4 text-right">Progress</TableHead><TableHead className="whitespace-normal text-right">Days since last read</TableHead></TableRow></TableHeader>
-          <TableBody>{data.books.map((book) => (
-            <TableRow key={book.content_id}>
-              <TableCell className="whitespace-normal"><Button variant="link" className="h-auto max-w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button></TableCell>
-              <TableCell className="text-right">{book.percent_read}%</TableCell>
-              <TableCell className="text-right">{book.days_since_read ?? "Unknown"}</TableCell>
-            </TableRow>
-          ))}</TableBody>
-        </Table>
+          <Table className="table-fixed">
+            <TableHeader><TableRow><TableHead className="w-1/2">Book</TableHead><TableHead className="w-1/4 text-right">Progress</TableHead><TableHead className="whitespace-normal text-right">Days since last read</TableHead></TableRow></TableHeader>
+            <TableBody>{data.books.map((book) => (
+              <TableRow key={book.content_id}>
+                <TableCell className="whitespace-normal"><Button variant="link" className="h-auto max-w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button></TableCell>
+                <TableCell className="text-right">{book.percent_read}%</TableCell>
+                <TableCell className="text-right">{book.days_since_read ?? "Unknown"}</TableCell>
+              </TableRow>
+            ))}</TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>

@@ -384,9 +384,9 @@ export function OverviewPage({
           <div className="grid gap-1">
             <CardTitle>Reading duration</CardTitle>
             <CardDescription>
-              Estimated from retained telemetry, including content IDs outside the current library.
+              Retained telemetry · Estimated daily allocation.
               {dashboard.reading_duration.unallocated_seconds > 0 && (
-                <> {formatDuration(dashboard.reading_duration.unallocated_seconds)} cannot be assigned reliably to dates.</>
+                <> {formatDuration(dashboard.reading_duration.unallocated_seconds)} undated.</>
               )}
             </CardDescription>
           </div>

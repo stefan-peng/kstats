@@ -8,12 +8,9 @@ export function ProgressPace({ pace }: { pace: BookDetail["progress_pace"] }) {
   if (!pace) return null
   return (
     <div className="mt-3 grid gap-1">
-      <p>Observed progress pace: {formatNumber(Math.round(pace.seconds_per_percent))}s per percentage point.</p>
-      <p>{pace.sample_count > 1
-        ? `Accepted sample spread: ${formatNumber(Math.round(pace.sample_min))}–${formatNumber(Math.round(pace.sample_max))}s per percentage point. Not a confidence interval.`
-        : "Only one usable sample; pace variability is unknown."}</p>
-      <p>{pace.latest_sample_at ? `Latest accepted session: ${formatDateTime(pace.latest_sample_at)}.` : "Sample dates are unavailable for retained import intervals."}</p>
-      <p>Rounded book progress can include navigation. This is not words or pages per minute.</p>
+      <p>Observed pace: {formatNumber(Math.round(pace.seconds_per_percent))}s per 1% progress.</p>
+      {pace.sample_count > 1 && <p>Sample range: {formatNumber(Math.round(pace.sample_min))}–{formatNumber(Math.round(pace.sample_max))}s per 1% progress.</p>}
+      {pace.latest_sample_at && <p>Last sample: {formatDateTime(pace.latest_sample_at)}</p>}
     </div>
   )
 }
@@ -23,8 +20,7 @@ export function ProgressMilestones({ milestones }: { milestones: BookDetail["pro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recorded progress milestones</CardTitle>
-        <CardDescription>Retained 25%, 50%, and 75% crossings. Repeated crossings may reflect navigation or earlier readings; gaps are not active reading time.</CardDescription>
+        <CardTitle>Progress milestones</CardTitle>
       </CardHeader>
       <CardContent>
         <ol className="grid gap-3" aria-label="Progress milestone timeline">
@@ -48,7 +44,7 @@ export function BookVocabulary({ words, activity }: {
     <>
       {words.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Saved vocabulary ({words.length})</CardTitle><CardDescription>Words saved in Kobo's WordList. Saved entries are not counts of lookup actions.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Saved vocabulary ({words.length})</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader><TableRow><TableHead>Word</TableHead><TableHead>Dictionary</TableHead><TableHead>Saved</TableHead></TableRow></TableHeader>
@@ -61,18 +57,18 @@ export function BookVocabulary({ words, activity }: {
       )}
       {(activity.reported_words.length > 0 || activity.recorded_at.length > 0) && (
         <Card>
-          <CardHeader><CardTitle>Dictionary activity</CardTitle><CardDescription>Event rows retain reported word values and aggregate interaction timestamps. Earlier timestamps may refer to different words; this is not a complete vocabulary or lookup history.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Dictionary activity</CardTitle><CardDescription>Timestamps are book-level, not per word.</CardDescription></CardHeader>
           <CardContent className="grid grid-cols-1 gap-4">
             {activity.reported_words.length > 0 && <Table>
-              <TableHeader><TableRow><TableHead>Reported word</TableHead><TableHead>Reported dictionary</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Reported word</TableHead><TableHead>Dictionary</TableHead></TableRow></TableHeader>
               <TableBody>{activity.reported_words.map((word) => <TableRow key={`${word.word}-${word.dictionary}`}><TableCell>{word.word}</TableCell><TableCell>{word.dictionary ?? "Unknown"}</TableCell></TableRow>)}</TableBody>
             </Table>}
             <div className="grid gap-1 text-sm">
-              <p>{formatNumber(activity.recorded_at.length)} distinct retained dictionary timestamps for this book, not per-word counts.</p>
               {activity.recorded_at.length > 0 ? <>
-                <p>Earliest retained interaction: {formatDateTime(activity.recorded_at[0])}</p>
-                <p>Latest retained interaction: {formatDateTime(activity.recorded_at[activity.recorded_at.length - 1])}</p>
-              </> : <p>No retained timestamps</p>}
+                <p>{formatNumber(activity.recorded_at.length)} distinct timestamps</p>
+                <p>First: {formatDateTime(activity.recorded_at[0])}</p>
+                <p>Last: {formatDateTime(activity.recorded_at[activity.recorded_at.length - 1])}</p>
+              </> : <p>No timestamps</p>}
             </div>
           </CardContent>
         </Card>

@@ -25,6 +25,7 @@ export function BookNotes({ book }: { book: Pick<BookDetail, "title" | "author" 
   const colors = [...new Set(book.bookmarks.map((bookmark) => bookmark.color))].sort((a, b) => a - b)
   const months = [...new Set(book.bookmarks.map(monthOf))].sort().reverse()
   const term = search.trim().toLocaleLowerCase()
+  const filtersActive = Boolean(search || color !== "all" || month !== "all")
   const visible = book.bookmarks.filter((bookmark) =>
     (color === "all" || String(bookmark.color) === color) &&
     (month === "all" || monthOf(bookmark) === month) &&
@@ -41,16 +42,15 @@ export function BookNotes({ book }: { book: Pick<BookDetail, "title" | "author" 
                 await navigator.clipboard.writeText(formatHighlights(book))
                 toast.success("Highlights and notes copied")
               } catch {
-                toast.error("Unable to copy. Use Download text to save your highlights.")
+                toast.error("Unable to copy. Try downloading instead.")
               }
-            }}><Copy data-icon="inline-start" />Copy highlights</Button>
+            }}><Copy data-icon="inline-start" />Copy all</Button>
             <Button variant="outline" size="sm" onClick={() => {
               try { downloadHighlights(book) } catch {
-                toast.error("Unable to download highlights. You can still select and copy the text below.")
+                toast.error("Unable to download highlights.")
               }
-            }}><Download data-icon="inline-start" />Download text</Button>
+            }}><Download data-icon="inline-start" />Download all</Button>
           </div>
-          <p className="text-xs text-muted-foreground">Exports include all highlights and notes, regardless of filters. Color codes have no assigned meaning.</p>
           <FieldGroup className="grid gap-3 sm:grid-cols-[1.5fr_1fr_1fr]">
             <Field><FieldLabel htmlFor={`${id}-search`}>Search highlights and notes</FieldLabel><Input id={`${id}-search`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Text or annotation" /></Field>
             <Field><FieldLabel htmlFor={`${id}-color`}>Highlight color</FieldLabel>
@@ -64,10 +64,10 @@ export function BookNotes({ book }: { book: Pick<BookDetail, "title" | "author" 
               </SelectGroup></SelectContent></Select>
             </Field>
           </FieldGroup>
-          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground" aria-live="polite">
+          {filtersActive && <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground" aria-live="polite">
             <span>{visible.length} of {book.bookmarks.length} shown</span>
-            {(search || color !== "all" || month !== "all") && <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setColor("all"); setMonth("all") }}>Clear note filters</Button>}
-          </div>
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setColor("all"); setMonth("all") }}>Clear note filters</Button>
+          </div>}
         </>
       )}
       {book.bookmarks.length === 0 ? <p className="text-sm text-muted-foreground">No highlights or notes are stored for this book.</p> : visible.length === 0 ? <p className="text-sm text-muted-foreground">No highlights or notes match these filters.</p> : visible.map((bookmark) => (
