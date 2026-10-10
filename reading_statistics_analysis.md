@@ -4,7 +4,8 @@ The [September 2026 accuracy audit](docs/data-accuracy-audit.md) supersedes the
 historical timeline assumptions below: aggregate counters can be stale relative
 to their timestamps. Explicit recent durations also exist in
 `AnalyticsEvents.LeaveContent.Metrics.SecondsRead`; they must not be added to
-overlapping aggregate counters.
+overlapping aggregate counters. The [October investigation](docs/derived-metrics-investigation.md)
+further documents start-counter, dictionary-field, and rendering-cache scope.
 
 Your plugged-in Kobo stores reading telemetry and metadata locally in `.kobo/KoboReader.sqlite` on the mounted device. By querying this database, we can extract book-level metrics, aggregated session telemetry, word lookup history, highlights, and annotations.
 
@@ -26,7 +27,7 @@ The `content` table contains records for all books and their individual chapters
 | `ReadStatus` | `INTEGER` | `0` = Unread, `1` = Reading (In Progress), `2` = Finished (Read) |
 | `TimeSpentReading` | `INTEGER` | Total time spent reading the book (in seconds) |
 | `___PercentRead` | `INTEGER` | Percentage progress through the book (`0` to `100`) |
-| `TimesStartedReading` | `INTEGER` | Number of times the book was opened/started |
+| `TimesStartedReading` | `INTEGER` | Kobo's stored start counter; not a reliable session/open count |
 | `DateLastRead` | `TEXT` | ISO-8601 timestamp of when the book was last read |
 | `LastTimeStartedReading` | `TEXT` | Start time of the last reading session |
 | `LastTimeFinishedReading`| `TEXT` | Last recorded book-completion timestamp; not the end of each session |
@@ -42,8 +43,8 @@ For Kobo EPUBs (`.kepub.epub`), the reader logs extremely granular telemetry in 
 
 | Event Type | Event Name / Category | Extracted Data Fields in `ExtraData` |
 | :--- | :--- | :--- |
-| **`3`** & **`46`** | **Aggregated reading telemetry** | • `ExtraDataReadingSeconds`: Total tracked duration represented by the row (seconds)<br>• `ExtraDataReadingSessions`: Number of sessions represented by the row<br>• `wordsRead`: Number of words read<br>• `PagesTurnedThisSession`: Page-turn count<br>• `StartPercentage`: Progress when tracking started<br>• `Orientation`: Device orientation (`Portrait`, `Landscape`)<br>• `eventTimestamps`: Unix timestamps for recorded reading interactions/page turns. |
-| **`9`** | **Dictionary Lookup** | • `Word`: The exact word looked up (e.g., `disembarked`, `Ruthenians`)<br>• `DictionaryName`: The dictionary code used (e.g., `-en` for English)<br>• `eventTimestamps`: Timestamp of the lookup |
+| **`3`** & **`46`** | **Aggregated reading telemetry** | • `ExtraDataReadingSeconds`: Total tracked duration represented by the row (seconds)<br>• `ExtraDataReadingSessions`: Number of sessions represented by the row<br>• `wordsRead`: Reported word value, not demonstrated total words read over the duration<br>• `PagesTurnedThisSession`: Page-turn count<br>• `StartPercentage`: Progress when tracking started<br>• `Orientation`: Device orientation (`Portrait`, `Landscape`)<br>• `eventTimestamps`: Unix timestamps for recorded reading interactions/page turns. |
+| **`9`** | **Dictionary Lookup** | • `Word`: A retained reported word value, not a complete lookup vocabulary (e.g., `disembarked`, `Ruthenians`)<br>• `DictionaryName`: The dictionary code used (e.g., `-en` for English)<br>• `eventTimestamps`: Aggregate dictionary interaction timestamps; not individually attributable to the reported word |
 | **`1012`** | **25% Milestone** | GA4 progress event at 25% |
 | **`1013`** | **50% Milestone** | GA4 progress event at 50% |
 | **`1014`** | **75% Milestone** | GA4 progress event at 75% |

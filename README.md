@@ -119,6 +119,10 @@ These are recorded observations, not complete progress or lookup histories.
 Highlights can be searched by text or annotation and filtered by stored color
 code and local creation month. Exports always include all of the book's notes.
 
+See [derived metrics investigation](docs/derived-metrics-investigation.md) for
+field-scope evidence, implemented calculations, and ideas deferred until the
+source data can support them.
+
 ## Maintenance
 
 Kobo `Event.ExtraData` values use a Qt binary serialization format that may

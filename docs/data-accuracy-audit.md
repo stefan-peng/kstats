@@ -1,5 +1,8 @@
 # Reading data accuracy audit — September 26, 2026
 
+The [October 10 follow-up](derived-metrics-investigation.md) revises dictionary
+word/timestamp scope and documents the current derived views and remaining limits.
+
 Evidence: read-only queries against `.data/KoboReader.sqlite` during this review,
 plus the source-to-API-to-UI calculation paths. Dates below use America/New_York.
 The snapshot was not modified. This verifies database consistency and app
