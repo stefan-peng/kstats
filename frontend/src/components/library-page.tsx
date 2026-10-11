@@ -153,17 +153,17 @@ export function LibrarySection({
         id: "title",
         header: "Book",
         cell: ({ row }) => (
-          <div className="flex min-w-72 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <BookCover
               title={row.original.title}
               coverUrl={row.original.cover_url}
               className="w-10"
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <button
                 type="button"
                 aria-label={`Open ${row.original.title}`}
-                className="block max-w-80 truncate text-left font-medium hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block w-full max-w-80 truncate text-left font-medium hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(event) => {
                   event.stopPropagation()
                   onOpenBook(row.original.content_id)
@@ -309,9 +309,9 @@ export function LibrarySection({
       <div
         role="group"
         aria-label="Library filters"
-        className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+        className="grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
       >
-        <div className="relative">
+        <div className="relative col-span-2 lg:col-span-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search library"
@@ -341,7 +341,7 @@ export function LibrarySection({
           updateBrowseState({ ...browseDefaults, sort: browse.sort, direction: browse.direction, book: browse.book })
         }}>Clear all</Button>
         {moreFilters && (
-          <div id="more-library-filters" className="grid gap-2 sm:col-span-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div id="more-library-filters" className="col-span-2 grid min-w-0 gap-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-3">
             <Select value={availability} onValueChange={setAvailability}>
               <SelectTrigger aria-label="Availability" className="h-9 min-w-0 w-full">
                 <SelectValue placeholder="Availability" />
@@ -429,7 +429,7 @@ export function LibrarySection({
         </Alert>
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
-          <Table>
+          <Table className="table-fixed sm:min-w-[640px] sm:table-auto md:min-w-[960px]">
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id}>
@@ -445,7 +445,7 @@ export function LibrarySection({
                             ? "hidden md:table-cell"
                             : ["last_read", "highlights"].includes(header.column.id)
                               ? "hidden sm:table-cell"
-                              : undefined
+                              : header.column.id === "title" ? "w-[65%] sm:w-auto" : undefined
                         }
                         aria-sort={
                           sorted === "asc"
@@ -509,7 +509,7 @@ export function LibrarySection({
                             ? "hidden md:table-cell"
                             : ["last_read", "highlights"].includes(cell.column.id)
                               ? "hidden sm:table-cell"
-                              : undefined
+                              : cell.column.id === "title" ? "w-[65%] sm:w-auto" : undefined
                         }
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

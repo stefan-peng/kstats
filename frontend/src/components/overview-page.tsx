@@ -189,7 +189,7 @@ export function OverviewPage({
   ]
 
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-8 p-5 md:p-8 lg:p-10">
+    <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:p-6 md:p-8 lg:p-10">
       {error && (
         <Alert>
           <TriangleAlert />
@@ -201,7 +201,7 @@ export function OverviewPage({
       )}
       <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
-          <h1 className="font-serif text-4xl font-semibold tracking-tight">
+          <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
             Reading overview
           </h1>
           <Button variant="link" className="px-0" onClick={focusLibrary}>Jump to library</Button>
@@ -222,17 +222,17 @@ export function OverviewPage({
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {metrics.map((metric) => (
           <Card key={metric.label}>
-            <CardHeader className="flex-row items-start justify-between">
+            <CardHeader className="flex flex-row items-start justify-between gap-2">
               <div>
                 <CardDescription>{metric.label}</CardDescription>
-                <CardTitle className="mt-2 font-serif text-3xl">
+                <CardTitle className="mt-2 whitespace-nowrap font-serif text-2xl tabular-nums sm:text-3xl">
                   {metric.value}
                 </CardTitle>
               </div>
-              <metric.icon className="size-5 text-primary" />
+              <metric.icon className="hidden size-5 shrink-0 text-primary sm:block" />
             </CardHeader>
           </Card>
         ))}
@@ -518,7 +518,7 @@ export function OverviewPage({
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <Progress value={book.percent_read} />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
                     <span>{book.percent_read}% complete</span>
                     <span>{formatDuration(book.reading_seconds)}</span>
                   </div>
@@ -536,7 +536,7 @@ export function OverviewPage({
             No reading time has been tracked yet.
           </p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {dashboard.top_books.map((book) => (
               <Card
                 key={book.content_id}
@@ -684,15 +684,15 @@ function DurationHeatmapView({ heatmap }: { heatmap: DurationHeatmap }) {
 
 function OverviewSkeleton() {
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-8 p-5 md:p-8 lg:p-10">
-      <div className="flex justify-between">
+    <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:gap-8 sm:p-6 md:p-8 lg:p-10">
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
         <div className="flex flex-col gap-3">
-          <Skeleton className="h-10 w-72" />
-          <Skeleton className="h-4 w-80" />
+          <Skeleton className="h-10 w-60 max-w-full" />
+          <Skeleton className="h-4 w-72 max-w-full" />
         </div>
         <Skeleton className="h-9 w-40" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <Skeleton key={index} className="h-36" />
         ))}

@@ -116,295 +116,310 @@ export function BookDetailDialog({
 
   return (
     <Dialog open={Boolean(contentId)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] grid-cols-1 overflow-y-auto sm:max-w-4xl">
-        {!book && (
-          <DialogHeader>
-            <DialogTitle>{error ? "Unable to load book" : "Loading book"}</DialogTitle>
-            <DialogDescription>Book details, reading history, and notes.</DialogDescription>
-          </DialogHeader>
-        )}
-        {error ? (
-          <Alert variant="destructive">
-            <AlertTitle>Unable to load book</AlertTitle>
-            <AlertDescription>
-              {error}
-              <Button variant="outline" size="sm" onClick={() => setRetry((value) => value + 1)}>Retry</Button>
-            </AlertDescription>
-          </Alert>
-        ) : !book ? (
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-8 w-2/3" />
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-28 w-full" />
-          </div>
-        ) : (
-          <>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] min-w-0 flex flex-col overflow-hidden p-4 pt-10 sm:max-w-4xl sm:p-6 sm:pt-10">
+        <div className="scroll-region flex min-h-0 flex-col gap-4 overflow-y-auto" role="region" aria-label="Book details" tabIndex={0}>
+          {!book && (
             <DialogHeader>
-              <div className="grid gap-5 sm:grid-cols-[112px_1fr]">
-                <BookCover
-                  title={book.title}
-                  coverUrl={book.cover_url}
-                  className="w-28"
-                />
-                <div className="flex min-w-0 flex-col gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status={book.status} />
-                    <Badge variant="outline">{sourceLabel(book.source_type)}</Badge>
-                    {book.downloaded && <Badge variant="outline">Downloaded</Badge>}
-                    {book.bookmark_count > 0 && (
-                      <Badge variant="secondary">
-                        {formatNumber(book.bookmark_count)} {book.bookmark_count === 1
-                          ? "highlight or note"
-                          : "highlights or notes"}
-                      </Badge>
-                    )}
-                  </div>
-                  <DialogTitle className="font-serif text-3xl">
-                    {book.title}
-                  </DialogTitle>
-                  <DialogDescription>{book.author}</DialogDescription>
-                </div>
-              </div>
+              <DialogTitle>{error ? "Unable to load book" : "Loading book"}</DialogTitle>
+              <DialogDescription>Book details, reading history, and notes.</DialogDescription>
             </DialogHeader>
-
-            <div className="flex min-w-0 flex-col gap-6">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Reading progress</span>
-                  <span className="font-medium">{book.percent_read}%</span>
-                </div>
-                <Progress value={book.percent_read} />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex items-start gap-3 rounded-lg border p-3">
-                  <Clock3 className="mt-0.5 size-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">{book.reading_time_source === "events" ? "Recorded reading time" : "Reading time"}</p>
-                    <p className="font-medium">{formatDuration(book.reading_seconds)}</p>
+          )}
+          {error ? (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load book</AlertTitle>
+              <AlertDescription>
+                {error}
+                <Button variant="outline" size="sm" onClick={() => setRetry((value) => value + 1)}>Retry</Button>
+              </AlertDescription>
+            </Alert>
+          ) : !book ? (
+            <div className="flex flex-col gap-4">
+              <Skeleton className="h-8 w-2/3" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          ) : (
+            <>
+              <DialogHeader className="text-left">
+                <div className="grid min-w-0 gap-5 sm:grid-cols-[112px_minmax(0,1fr)]">
+                  <BookCover
+                    title={book.title}
+                    coverUrl={book.cover_url}
+                    className="w-28"
+                  />
+                  <div className="flex min-w-0 flex-col gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={book.status} />
+                      <Badge variant="outline">{sourceLabel(book.source_type)}</Badge>
+                      {book.downloaded && <Badge variant="outline">Downloaded</Badge>}
+                      {book.bookmark_count > 0 && (
+                        <Badge variant="secondary">
+                          {formatNumber(book.bookmark_count)} {book.bookmark_count === 1
+                            ? "highlight or note"
+                            : "highlights or notes"}
+                        </Badge>
+                      )}
+                    </div>
+                    <DialogTitle className="font-serif text-3xl">
+                      {book.title}
+                    </DialogTitle>
+                    <DialogDescription>{book.author}</DialogDescription>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 rounded-lg border p-3">
-                  <CalendarDays className="mt-0.5 size-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Last read</p>
-                    <p className="font-medium">{formatDate(book.date_last_read)}</p>
+              </DialogHeader>
+
+              <div className="flex min-w-0 flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Reading progress</span>
+                    <span className="font-medium">{book.percent_read}%</span>
+                  </div>
+                  <Progress value={book.percent_read} />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex items-start gap-3 rounded-lg border p-3">
+                    <Clock3 className="mt-0.5 size-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">{book.reading_time_source === "events" ? "Recorded reading time" : "Reading time"}</p>
+                      <p className="font-medium">{formatDuration(book.reading_seconds)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 rounded-lg border p-3">
+                    <CalendarDays className="mt-0.5 size-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Last read</p>
+                      <p className="font-medium">{formatDate(book.date_last_read)}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {book.recent_sessions.length > 0 && (
+                {book.recent_sessions.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Recent sessions</CardTitle>
+                      <CardDescription>
+                        Retained records only.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ol className="scroll-region flex max-h-80 flex-col gap-0 overflow-y-auto" aria-label="Recent reading sessions" tabIndex={0}>
+                        {book.recent_sessions.map((session, index) => (
+                          <li key={session.id} className="min-w-0 shrink-0">
+                            {index > 0 && <Separator />}
+                            <div className="flex min-w-0 flex-col gap-2 py-3">
+                              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                                <time dateTime={session.ended_at} className="text-sm font-medium">
+                                  {formatDateTime(session.ended_at)}
+                                </time>
+                                <span className="text-sm font-semibold tabular-nums">{formatDuration(session.seconds)}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                {session.pages_turned !== null && <span>{formatNumber(session.pages_turned)} page turns</span>}
+                                {session.progress_change !== null && <span>{formatNumber(session.progress_change)} pp progress</span>}
+                              </div>
+                              <details className="text-xs text-muted-foreground">
+                                <summary className="w-fit rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Session details</summary>
+                                <div className="flex flex-col gap-1 pt-2">
+                                  <p>{formatNumber(session.seconds)} seconds recorded</p>
+                                  {session.started_at && <p>Opened: {formatDateTime(session.started_at)}</p>}
+                                  <p>{session.pace_reason}</p>
+                                </div>
+                              </details>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <ProgressMilestones milestones={book.progress_milestones} />
+
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recent sessions</CardTitle>
+                    <CardTitle>Recorded reading activity</CardTitle>
                     <CardDescription>
-                      Retained records, not a complete history.
+                      {formatDuration(book.reading_duration.source_seconds)} recorded · Estimated daily split.
+                      {book.reading_duration.unallocated_seconds > 0 && (
+                        <> {formatDuration(book.reading_duration.unallocated_seconds)} undated.</>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <dl className="grid gap-3">
-                      {book.recent_sessions.map((session) => (
-                        <div key={session.id} className="flex flex-wrap justify-between gap-2 text-sm">
-                          <dt>{formatDateTime(session.ended_at)}</dt>
-                          <dd>
-                            <p>{formatNumber(session.seconds)}s
-                            {session.pages_turned !== null && ` · ${formatNumber(session.pages_turned)} page turns`}</p>
-                            {session.started_at && <p className="text-xs text-muted-foreground">Opened: {formatDateTime(session.started_at)}</p>}
-                            {session.progress_change !== null && <p className="text-xs text-muted-foreground">{formatNumber(session.progress_change)} percentage points</p>}
-                            <p className="text-xs text-muted-foreground">{session.pace_reason}</p>
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
+                    {readingDurationSeries.length === 0 ? (
+                      <p className="flex h-44 items-center justify-center text-sm text-muted-foreground">
+                        {book.reading_duration.unallocated_seconds > 0
+                          ? "Daily reading time is unavailable for this telemetry."
+                          : "No detailed reading telemetry is available for this book."}
+                      </p>
+                    ) : (
+                      <ChartContainer
+                        config={readingChartConfig}
+                        className="h-52 min-h-0 w-full min-w-0 aspect-auto"
+                        role="img"
+                        aria-label="Estimated reading time by day"
+                      >
+                        <BarChart
+                          accessibilityLayer
+                          data={readingDurationSeries}
+                          margin={{ left: 8, right: 8 }}
+                        >
+                          <CartesianGrid vertical={false} />
+                          <XAxis
+                            dataKey="timestamp"
+                            type="number"
+                            scale="time"
+                            domain={[
+                              (minimum: number) => minimum - DAY_MILLISECONDS / 2,
+                              (maximum: number) => maximum + DAY_MILLISECONDS / 2,
+                            ]}
+                            tickLine={false}
+                            axisLine={false}
+                            minTickGap={16}
+                            tickFormatter={(value) => formatChartDate(Number(value))}
+                          />
+                          <YAxis
+                            tickLine={false}
+                            axisLine={false}
+                            width={52}
+                            tickFormatter={(value) =>
+                              Number(value) === 0 ? "" : formatDuration(Number(value))
+                            }
+                          />
+                          <ChartTooltip
+                            content={
+                              <ChartTooltipContent
+                                labelFormatter={(_value, payload) =>
+                                  formatChartDate(
+                                    Number(payload[0]?.payload?.timestamp),
+                                    true,
+                                  )
+                                }
+                                formatter={(value) => (
+                                  <div className="flex min-w-32 items-center justify-between gap-4">
+                                    <span className="text-muted-foreground">
+                                      Reading time
+                                    </span>
+                                    <span className="font-mono font-medium tabular-nums">
+                                      {formatDuration(Number(value))}
+                                    </span>
+                                  </div>
+                                )}
+                              />
+                            }
+                          />
+                          <Bar
+                            dataKey="seconds"
+                            fill="var(--color-seconds)"
+                            radius={[4, 4, 0, 0]}
+                            maxBarSize={28}
+                            isAnimationActive={false}
+                          />
+                        </BarChart>
+                      </ChartContainer>
+                    )}
                   </CardContent>
                 </Card>
-              )}
 
-              <ProgressMilestones milestones={book.progress_milestones} />
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recorded reading activity</CardTitle>
-                  <CardDescription>
-                    {formatDuration(book.reading_duration.source_seconds)} recorded · Estimated daily split.
-                    {book.reading_duration.unallocated_seconds > 0 && (
-                      <> {formatDuration(book.reading_duration.unallocated_seconds)} undated.</>
+                {book.status === "reading" && book.remaining_seconds > 0 ? (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-start gap-3">
+                        <Timer className="mt-0.5 size-5 text-primary" />
+                        <div>
+                          <CardDescription>{book.remaining_estimate_source === "sessions"
+                            ? "Time remaining · sessions"
+                            : book.remaining_estimate_source === "observations"
+                              ? "Time remaining · reading history"
+                              : "Time remaining · Kobo"}</CardDescription>
+                          <CardTitle className="mt-1 font-serif text-2xl">
+                            {formatDuration(book.remaining_seconds)}
+                          </CardTitle>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    {book.remaining_estimate_source === "sessions" || book.remaining_estimate_source === "observations" ? (
+                      <CardContent className="text-sm text-muted-foreground">
+                        <p>{book.remaining_estimate_sessions} {book.remaining_estimate_source === "observations" ? (book.remaining_estimate_sessions === 1 ? "reading interval" : "reading intervals") : (book.remaining_estimate_sessions === 1 ? "session" : "sessions")} · {formatDuration(book.remaining_estimate_reading_seconds)} recorded · {book.remaining_estimate_progress}% progress.</p>
+                        <ProgressPace pace={book.progress_pace} />
+                      </CardContent>
+                    ) : (
+                      <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <p className="text-muted-foreground">Current chapter</p>
+                          <p className="font-medium">
+                            {book.current_chapter_estimate_seconds > 0
+                              ? formatDuration(book.current_chapter_estimate_seconds)
+                              : "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">After this chapter</p>
+                          <p className="font-medium">
+                            {book.rest_of_book_estimate_seconds > 0
+                              ? formatDuration(book.rest_of_book_estimate_seconds)
+                              : "—"}
+                          </p>
+                        </div>
+                      </CardContent>
                     )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {readingDurationSeries.length === 0 ? (
-                    <p className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-                      {book.reading_duration.unallocated_seconds > 0
-                        ? "Daily reading time is unavailable for this telemetry."
-                        : "No detailed reading telemetry is available for this book."}
-                    </p>
-                  ) : (
-                    <ChartContainer
-                      config={readingChartConfig}
-                      className="h-52 min-h-0 w-full min-w-0 aspect-auto"
-                      role="img"
-                      aria-label="Estimated reading time by day"
-                    >
-                      <BarChart
-                        accessibilityLayer
-                        data={readingDurationSeries}
-                        margin={{ left: 8, right: 8 }}
-                      >
-                        <CartesianGrid vertical={false} />
-                        <XAxis
-                          dataKey="timestamp"
-                          type="number"
-                          scale="time"
-                          domain={[
-                            (minimum: number) => minimum - DAY_MILLISECONDS / 2,
-                            (maximum: number) => maximum + DAY_MILLISECONDS / 2,
-                          ]}
-                          tickLine={false}
-                          axisLine={false}
-                          minTickGap={16}
-                          tickFormatter={(value) => formatChartDate(Number(value))}
-                        />
-                        <YAxis
-                          tickLine={false}
-                          axisLine={false}
-                          width={52}
-                          tickFormatter={(value) =>
-                            Number(value) === 0 ? "" : formatDuration(Number(value))
-                          }
-                        />
-                        <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              labelFormatter={(_value, payload) =>
-                                formatChartDate(
-                                  Number(payload[0]?.payload?.timestamp),
-                                  true,
-                                )
-                              }
-                              formatter={(value) => (
-                                <div className="flex min-w-32 items-center justify-between gap-4">
-                                  <span className="text-muted-foreground">
-                                    Reading time
-                                  </span>
-                                  <span className="font-mono font-medium tabular-nums">
-                                    {formatDuration(Number(value))}
-                                  </span>
-                                </div>
-                              )}
-                            />
-                          }
-                        />
-                        <Bar
-                          dataKey="seconds"
-                          fill="var(--color-seconds)"
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={28}
-                          isAnimationActive={false}
-                        />
-                      </BarChart>
-                    </ChartContainer>
-                  )}
-                </CardContent>
-              </Card>
+                  </Card>
+                ) : null}
 
-              {book.status === "reading" && book.remaining_seconds > 0 ? (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-start gap-3">
-                      <Timer className="mt-0.5 size-5 text-primary" />
+                {(book.series || book.publisher || book.word_count || book.language || book.isbn) && (
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    {book.series && (
                       <div>
-                        <CardDescription>{book.remaining_estimate_source === "sessions"
-                          ? "Time remaining · sessions"
-                          : book.remaining_estimate_source === "observations"
-                            ? "Time remaining · reading history"
-                            : "Time remaining · Kobo"}</CardDescription>
-                        <CardTitle className="mt-1 font-serif text-2xl">
-                          {formatDuration(book.remaining_seconds)}
-                        </CardTitle>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  {book.remaining_estimate_source === "sessions" || book.remaining_estimate_source === "observations" ? (
-                    <CardContent className="text-sm text-muted-foreground">
-                      <p>{book.remaining_estimate_sessions} {book.remaining_estimate_source === "observations" ? (book.remaining_estimate_sessions === 1 ? "reading interval" : "reading intervals") : (book.remaining_estimate_sessions === 1 ? "session" : "sessions")} · {formatDuration(book.remaining_estimate_reading_seconds)} recorded · {book.remaining_estimate_progress}% progress.</p>
-                      <ProgressPace pace={book.progress_pace} />
-                    </CardContent>
-                  ) : (
-                    <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-                      <div>
-                        <p className="text-muted-foreground">Current chapter</p>
-                        <p className="font-medium">
-                          {book.current_chapter_estimate_seconds > 0
-                            ? formatDuration(book.current_chapter_estimate_seconds)
-                            : "—"}
+                        <p className="text-muted-foreground">Series</p>
+                        <p>
+                          {book.series}
+                          {book.series_number ? ` · ${book.series_number}` : ""}
                         </p>
                       </div>
+                    )}
+                    {book.publisher && (
                       <div>
-                        <p className="text-muted-foreground">After this chapter</p>
-                        <p className="font-medium">
-                          {book.rest_of_book_estimate_seconds > 0
-                            ? formatDuration(book.rest_of_book_estimate_seconds)
-                            : "—"}
-                        </p>
+                        <p className="text-muted-foreground">Publisher</p>
+                        <p>{book.publisher}</p>
                       </div>
-                    </CardContent>
-                  )}
-                </Card>
-              ) : null}
+                    )}
+                    {book.language && (
+                      <div>
+                        <p className="text-muted-foreground">Language</p>
+                        <p>{book.language}</p>
+                      </div>
+                    )}
+                    {book.isbn && (
+                      <div>
+                        <p className="text-muted-foreground">ISBN</p>
+                        <p>{book.isbn}</p>
+                      </div>
+                    )}
+                    {book.word_count && (
+                      <div>
+                        <p className="text-muted-foreground">Word count</p>
+                        <p>{formatNumber(book.word_count)}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {(book.series || book.publisher || book.word_count || book.language || book.isbn) && (
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
-                  {book.series && (
-                    <div>
-                      <p className="text-muted-foreground">Series</p>
-                      <p>
-                        {book.series}
-                        {book.series_number ? ` · ${book.series_number}` : ""}
-                      </p>
-                    </div>
-                  )}
-                  {book.publisher && (
-                    <div>
-                      <p className="text-muted-foreground">Publisher</p>
-                      <p>{book.publisher}</p>
-                    </div>
-                  )}
-                  {book.language && (
-                    <div>
-                      <p className="text-muted-foreground">Language</p>
-                      <p>{book.language}</p>
-                    </div>
-                  )}
-                  {book.isbn && (
-                    <div>
-                      <p className="text-muted-foreground">ISBN</p>
-                      <p>{book.isbn}</p>
-                    </div>
-                  )}
-                  {book.word_count && (
-                    <div>
-                      <p className="text-muted-foreground">Word count</p>
-                      <p>{formatNumber(book.word_count)}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                {book.description && (
+                  <>
+                    <Separator />
+                    <FormattedText>{book.description}</FormattedText>
+                  </>
+                )}
 
-              {book.description && (
-                <>
-                  <Separator />
-                  <FormattedText>{book.description}</FormattedText>
-                </>
-              )}
+                <BookVocabulary words={book.saved_words} activity={book.dictionary_activity} />
 
-              <BookVocabulary words={book.saved_words} activity={book.dictionary_activity} />
-
-              <Separator />
-              <BookNotes key={book.content_id} book={book} />
-            </div>
-          </>
-        )}
+                <Separator />
+                <BookNotes key={book.content_id} book={book} />
+              </div>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

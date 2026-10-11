@@ -286,3 +286,37 @@ button.duration-heatmap-cell {
 :where(button:disabled, [aria-disabled="true"]) * {
   cursor: not-allowed !important;
 }
+
+/* Keep charts and tables within their grid tracks at every viewport width. */
+@layer base {
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  [data-slot="card"],
+  [data-slot="card-header"],
+  [data-slot="card-content"] {
+    min-width: 0;
+  }
+
+  [data-slot="card-title"],
+  [data-slot="dialog-title"] {
+    overflow-wrap: anywhere;
+  }
+
+  [data-slot="table-cell"] {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Native scrollbar tracks sit inside the panel padding, clear of content. */
+.scroll-region {
+  scrollbar-gutter: stable;
+  padding-inline-end: 0.75rem;
+  padding-block: 0.25rem;
+  overscroll-behavior: contain;
+}
+
+[data-slot="table-container"] {
+  padding-bottom: 0.5rem;
+}

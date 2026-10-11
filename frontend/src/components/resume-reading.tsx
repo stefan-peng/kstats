@@ -51,7 +51,7 @@ export function ResumeReading({ data, onOpenBook }: {
           )}
           {data.books.length === 0 && <p className="text-sm text-muted-foreground">Nothing in progress.</p>}
         </div>
-        <div className="max-h-96 overflow-y-auto" role="region" aria-label="Scrollable in-progress books" tabIndex={0}>
+        <div className="scroll-region max-h-96 overflow-y-auto" role="region" aria-label="Scrollable in-progress books" tabIndex={0}>
           <Table className="table-fixed">
             <TableHeader><TableRow><TableHead className="w-1/2">Book</TableHead><TableHead className="w-1/4 text-right">Progress</TableHead><TableHead className="whitespace-normal text-right">Days since last read</TableHead></TableRow></TableHeader>
             <TableBody>{data.books.map((book) => (
