@@ -301,7 +301,7 @@ export function LibrarySection({
   return (
     <section className="flex flex-col gap-5" aria-labelledby="library-heading">
       <header>
-        <h2 id="library-heading" tabIndex={-1} className="scroll-mt-24 font-serif text-2xl font-semibold">
+        <h2 data-usage-view="library" id="library-heading" tabIndex={-1} className="scroll-mt-24 font-serif text-2xl font-semibold">
           Library
         </h2>
       </header>
@@ -314,7 +314,7 @@ export function LibrarySection({
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label="Search library"
+            data-usage-search="library.search" aria-label="Search library"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by title or author"
@@ -334,10 +334,10 @@ export function LibrarySection({
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Button variant="outline" aria-expanded={moreFilters} aria-controls="more-library-filters" onClick={() => setMoreFilters((value) => !value)}>
+        <Button variant="outline" data-usage-action="library.more_filters" aria-expanded={moreFilters} aria-controls="more-library-filters" onClick={() => setMoreFilters((value) => !value)}>
           More filters
         </Button>
-        <Button variant="ghost" disabled={!search && status === "all" && activeFilters.length === 0} onClick={() => {
+        <Button data-usage-action="library.clear" variant="ghost" disabled={!search && status === "all" && activeFilters.length === 0} onClick={() => {
           updateBrowseState({ ...browseDefaults, sort: browse.sort, direction: browse.direction, book: browse.book })
         }}>Clear all</Button>
         {moreFilters && (
@@ -495,6 +495,7 @@ export function LibrarySection({
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
+                    data-usage-action="book.open.library"
                     data-interactive="true"
                     className="hover:bg-muted/50"
                     onClick={() => onOpenBook(row.original.content_id)}

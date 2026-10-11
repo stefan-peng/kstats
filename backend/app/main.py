@@ -12,6 +12,7 @@ from .device_monitor import POLL_INTERVAL_SECONDS, DeviceMonitor
 from .importer import ImportError, prepare_snapshot
 from .kobo_events import EventDecodeError
 from .repository import Repository
+from .usage import UsageEvent, UsageStore
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -36,6 +37,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Kobo Stats", lifespan=lifespan)
     app.state.settings = app_settings
+
+    usage = UsageStore(app_settings.data_dir)
+
+    @app.get("/api/usage")
+    def get_usage():
+        return usage.report()
+
+    @app.post("/api/usage", status_code=204)
+    def record_usage(event: UsageEvent):
+        usage.record(event.name, event.revision)
 
     def repository(request: Request) -> Repository:
         return Repository(request.app.state.settings)

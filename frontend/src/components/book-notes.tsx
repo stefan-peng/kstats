@@ -1,3 +1,4 @@
+import { trackUsage } from "@/lib/usage"
 import { useId, useState } from "react"
 import { Copy, Download, Highlighter } from "lucide-react"
 import { toast } from "sonner"
@@ -33,40 +34,41 @@ export function BookNotes({ book }: { book: Pick<BookDetail, "title" | "author" 
   )
   return (
     <section className="flex flex-col gap-3" aria-label="Highlights and notes">
-      <div className="flex items-center gap-2"><Highlighter className="size-4 text-primary" /><h3 className="font-medium">Highlights and notes ({book.bookmarks.length})</h3></div>
+      <div className="flex items-center gap-2"><Highlighter className="size-4 text-primary" /><h3 data-usage-view="notes" className="font-medium">Highlights and notes ({book.bookmarks.length})</h3></div>
       {book.bookmarks.length > 0 && (
         <>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={async () => {
               try {
                 await navigator.clipboard.writeText(formatHighlights(book))
+                trackUsage("notes.copy")
                 toast.success("Highlights and notes copied")
               } catch {
                 toast.error("Unable to copy. Try downloading instead.")
               }
             }}><Copy data-icon="inline-start" />Copy all</Button>
             <Button variant="outline" size="sm" onClick={() => {
-              try { downloadHighlights(book) } catch {
+              try { downloadHighlights(book); trackUsage("notes.download") } catch {
                 toast.error("Unable to download highlights.")
               }
             }}><Download data-icon="inline-start" />Download all</Button>
           </div>
           <FieldGroup className="grid gap-3 sm:grid-cols-[1.5fr_1fr_1fr]">
-            <Field><FieldLabel htmlFor={`${id}-search`}>Search highlights and notes</FieldLabel><Input id={`${id}-search`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Text or annotation" /></Field>
+            <Field><FieldLabel htmlFor={`${id}-search`}>Search highlights and notes</FieldLabel><Input data-usage-search="notes.search" id={`${id}-search`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Text or annotation" /></Field>
             <Field><FieldLabel htmlFor={`${id}-color`}>Highlight color</FieldLabel>
-              <Select value={color} onValueChange={setColor}><SelectTrigger id={`${id}-color`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
+              <Select value={color} onValueChange={(value) => { setColor(value); trackUsage("notes.color") }}><SelectTrigger id={`${id}-color`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                 <SelectItem value="all">All colors</SelectItem>{colors.map((value) => <SelectItem key={value} value={String(value)}>Color {value}</SelectItem>)}
               </SelectGroup></SelectContent></Select>
             </Field>
             <Field><FieldLabel htmlFor={`${id}-month`}>Created month</FieldLabel>
-              <Select value={month} onValueChange={setMonth}><SelectTrigger id={`${id}-month`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
+              <Select value={month} onValueChange={(value) => { setMonth(value); trackUsage("notes.month") }}><SelectTrigger id={`${id}-month`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
                 <SelectItem value="all">All months</SelectItem>{months.map((value) => <SelectItem key={value} value={value}>{value === "undated" ? "Undated" : formatMonthYear(value)}</SelectItem>)}
               </SelectGroup></SelectContent></Select>
             </Field>
           </FieldGroup>
           {filtersActive && <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground" aria-live="polite">
             <span>{visible.length} of {book.bookmarks.length} shown</span>
-            <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setColor("all"); setMonth("all") }}>Clear note filters</Button>
+            <Button data-usage-action="notes.clear" variant="ghost" size="sm" onClick={() => { setSearch(""); setColor("all"); setMonth("all") }}>Clear note filters</Button>
           </div>}
         </>
       )}

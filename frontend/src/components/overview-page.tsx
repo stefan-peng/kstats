@@ -149,7 +149,7 @@ export function OverviewPage({
           <AlertTitle>{device?.importing && !device.import_error ? "Importing from Kobo…" : "Reading data is unavailable"}</AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-3">
             <span>{device?.importing && !device.import_error ? "Your reading data will appear when the import finishes." : error ?? "Connect your Kobo and import its database."}</span>
-            <Button size="sm" onClick={onRefresh} disabled={refreshing || device?.importing || !device?.connected}>
+            <Button size="sm" data-usage-action="import.refresh" onClick={onRefresh} disabled={refreshing || device?.importing || !device?.connected}>
               <RefreshCw data-icon="inline-start" />
               Import from Kobo
             </Button>
@@ -201,13 +201,13 @@ export function OverviewPage({
       )}
       <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
-          <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 data-usage-view="overview" className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
             Reading overview
           </h1>
-          <Button variant="link" className="px-0" onClick={focusLibrary}>Jump to library</Button>
+          <Button variant="link" className="px-0" data-usage-action="library.jump" onClick={focusLibrary}>Jump to library</Button>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <Button onClick={onRefresh} disabled={refreshing || device?.importing || !device?.connected}>
+          <Button data-usage-action="import.refresh" onClick={onRefresh} disabled={refreshing || device?.importing || !device?.connected}>
             <RefreshCw
               data-icon="inline-start"
               className={refreshing || device?.importing ? "animate-spin" : undefined}
@@ -241,7 +241,7 @@ export function OverviewPage({
       <section className="grid gap-5 xl:grid-cols-[0.9fr_1.5fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Reading status</CardTitle>
+            <CardTitle data-usage-view="status">Reading status</CardTitle>
           </CardHeader>
           <CardContent className="grid items-center gap-4 sm:grid-cols-[180px_1fr] xl:grid-cols-1 2xl:grid-cols-[180px_1fr]">
             <div className="h-44">
@@ -297,7 +297,7 @@ export function OverviewPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Monthly completions</CardTitle>
+            <CardTitle data-usage-view="completions">Monthly completions</CardTitle>
           </CardHeader>
           <CardContent>
             {dashboard.monthly_completions.length === 0 ? (
@@ -382,7 +382,7 @@ export function OverviewPage({
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="grid gap-1">
-            <CardTitle>Reading duration</CardTitle>
+            <CardTitle data-usage-view="duration">Reading duration</CardTitle>
             <CardDescription>
               Retained telemetry · Estimated daily allocation.
               {dashboard.reading_duration.unallocated_seconds > 0 && (
@@ -410,6 +410,7 @@ export function OverviewPage({
                   size="sm"
                   variant={durationOption === option ? "default" : "outline"}
                   aria-pressed={durationOption === option}
+                  data-usage-action={`duration.${option}`}
                   onClick={() => setDurationOption(option)}
                 >
                   {label}
@@ -491,7 +492,7 @@ export function OverviewPage({
       <ResumeReading data={dashboard.resume_reading} onOpenBook={onOpenBook} />
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-serif text-2xl font-semibold">Continue reading</h2>
+        <h2 data-usage-view="continue" className="font-serif text-2xl font-semibold">Continue reading</h2>
         {dashboard.continue_reading.length === 0 ? (
           <p className="rounded-lg border p-6 text-sm text-muted-foreground">
             No books are currently marked as in progress.
@@ -501,6 +502,7 @@ export function OverviewPage({
             {dashboard.continue_reading.slice(0, 3).map((book) => (
               <Card
                 key={book.content_id}
+                data-usage-action="book.open.continue"
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${book.title} by ${book.author}, ${book.percent_read}% complete, ${formatDuration(book.reading_seconds)} read`}
@@ -530,7 +532,7 @@ export function OverviewPage({
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-serif text-2xl font-semibold">Most read</h2>
+        <h2 data-usage-view="top" className="font-serif text-2xl font-semibold">Most read</h2>
         {dashboard.top_books.length === 0 ? (
           <p className="rounded-lg border p-6 text-sm text-muted-foreground">
             No reading time has been tracked yet.
@@ -540,6 +542,7 @@ export function OverviewPage({
             {dashboard.top_books.map((book) => (
               <Card
                 key={book.content_id}
+                data-usage-action="book.open.top"
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${book.title} by ${book.author}, ${formatDuration(book.reading_seconds)} read, ${book.percent_read}% complete`}

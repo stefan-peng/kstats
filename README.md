@@ -129,3 +129,11 @@ Kobo `Event.ExtraData` values use a Qt binary serialization format that may
 change with firmware updates. Periodically verify the decoder in
 `backend/app/kobo_events.py` against current device data, including new event
 fields or event types that could support useful, reliable book details.
+
+## Background usage metrics
+
+Local feature-use and section-visibility counts are stored in `.data/usage.sqlite`,
+separate from Kobo snapshots, for 180 days. Nothing is sent to an external service
+and no reading content or search text is recorded. See
+[usage-driven evolution](docs/usage-metrics.md) for event meanings and the manual
+review process for future design changes.

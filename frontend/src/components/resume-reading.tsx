@@ -20,7 +20,7 @@ export function ResumeReading({ data, onOpenBook }: {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Resume reading</CardTitle>
+        <CardTitle data-usage-view="resume">Resume reading</CardTitle>
         <CardDescription>
           {data.as_of ? `As of ${formatDate(data.as_of)}` : "Snapshot date unavailable"}
         </CardDescription>
@@ -43,7 +43,7 @@ export function ResumeReading({ data, onOpenBook }: {
               <h3 className="text-sm font-medium">Shortest remaining estimates</h3>
               {finishSoon.map((book) => (
                 <div key={book.content_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <Button variant="link" className="h-auto max-w-full justify-start whitespace-normal px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button>
+                  <Button data-usage-action="book.open.finish_soon" variant="link" className="h-auto max-w-full justify-start whitespace-normal px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button>
                   <span className="text-muted-foreground">{formatDuration(book.remaining_seconds)} est. · {estimateSource(book.remaining_estimate_source)}</span>
                 </div>
               ))}
@@ -56,7 +56,7 @@ export function ResumeReading({ data, onOpenBook }: {
             <TableHeader><TableRow><TableHead className="w-1/2">Book</TableHead><TableHead className="w-1/4 text-right">Progress</TableHead><TableHead className="whitespace-normal text-right">Days since last read</TableHead></TableRow></TableHeader>
             <TableBody>{data.books.map((book) => (
               <TableRow key={book.content_id}>
-                <TableCell className="whitespace-normal"><Button variant="link" className="h-auto max-w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button></TableCell>
+                <TableCell className="whitespace-normal"><Button data-usage-action="book.open.resume" variant="link" className="h-auto max-w-full justify-start whitespace-normal break-words px-0 text-left" onClick={() => onOpenBook(book.content_id)}>{book.title}</Button></TableCell>
                 <TableCell className="text-right">{book.percent_read}%</TableCell>
                 <TableCell className="text-right">{book.days_since_read ?? "Unknown"}</TableCell>
               </TableRow>

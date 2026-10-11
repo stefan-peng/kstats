@@ -20,7 +20,7 @@ export function ProgressMilestones({ milestones }: { milestones: BookDetail["pro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Progress milestones</CardTitle>
+        <CardTitle data-usage-view="milestones">Progress milestones</CardTitle>
       </CardHeader>
       <CardContent>
         <ol className="grid gap-3" aria-label="Progress milestone timeline">
@@ -44,7 +44,7 @@ export function BookVocabulary({ words, activity }: {
     <>
       {words.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Saved vocabulary ({words.length})</CardTitle></CardHeader>
+          <CardHeader><CardTitle data-usage-view="vocabulary">Saved vocabulary ({words.length})</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader><TableRow><TableHead>Word</TableHead><TableHead>Dictionary</TableHead><TableHead>Saved</TableHead></TableRow></TableHeader>
@@ -57,7 +57,7 @@ export function BookVocabulary({ words, activity }: {
       )}
       {(activity.reported_words.length > 0 || activity.recorded_at.length > 0) && (
         <Card>
-          <CardHeader><CardTitle>Dictionary activity</CardTitle><CardDescription>Timestamps are book-level, not per word.</CardDescription></CardHeader>
+          <CardHeader><CardTitle data-usage-view="dictionary">Dictionary activity</CardTitle><CardDescription>Timestamps are book-level, not per word.</CardDescription></CardHeader>
           <CardContent className="grid grid-cols-1 gap-4">
             {activity.reported_words.length > 0 && <Table>
               <TableHeader><TableRow><TableHead>Reported word</TableHead><TableHead>Dictionary</TableHead></TableRow></TableHeader>

@@ -1,3 +1,4 @@
+import { trackUsage } from "@/lib/usage"
 import { useState } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,12 +27,12 @@ export function ReadingInsights({ insights, telemetryScope }: {
     <section className="grid gap-5 xl:grid-cols-[1.5fr_0.9fr]" aria-label="Reading insights">
       <Card>
         <CardHeader>
-          <CardTitle>Library reading time</CardTitle>
+          <CardTitle data-usage-view="insights">Library reading time</CardTitle>
           <CardDescription>
             Top 10 groups, split by current status.
           </CardDescription>
           <CardAction>
-            <Select value={dimension} onValueChange={(value) => setDimension(value as keyof typeof dimensions)}>
+            <Select value={dimension} onValueChange={(value) => { setDimension(value as keyof typeof dimensions); trackUsage(`insights.${value}`) }}>
               <SelectTrigger aria-label="Group reading time by"><SelectValue /></SelectTrigger>
               <SelectContent><SelectGroup>
                 {Object.entries(dimensions).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
@@ -61,7 +62,7 @@ export function ReadingInsights({ insights, telemetryScope }: {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Data coverage</CardTitle>
+          <CardTitle data-usage-view="coverage">Data coverage</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-4 text-sm">

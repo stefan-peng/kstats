@@ -59,7 +59,7 @@ export function AppShell({
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Toggle theme"
+                  data-usage-action="theme.toggle" aria-label="Toggle theme"
                   onClick={() =>
                     setTheme(resolvedTheme === "dark" ? "light" : "dark")
                   }

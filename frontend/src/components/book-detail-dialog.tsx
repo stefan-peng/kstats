@@ -160,7 +160,7 @@ export function BookDetailDialog({
                         </Badge>
                       )}
                     </div>
-                    <DialogTitle className="font-serif text-3xl">
+                    <DialogTitle data-usage-view="book" className="font-serif text-3xl">
                       {book.title}
                     </DialogTitle>
                     <DialogDescription>{book.author}</DialogDescription>
@@ -197,7 +197,7 @@ export function BookDetailDialog({
                 {book.recent_sessions.length > 0 && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Recent sessions</CardTitle>
+                      <CardTitle data-usage-view="sessions">Recent sessions</CardTitle>
                       <CardDescription>
                         Retained records only.
                       </CardDescription>
@@ -219,7 +219,7 @@ export function BookDetailDialog({
                                 {session.progress_change !== null && <span>{formatNumber(session.progress_change)} pp progress</span>}
                               </div>
                               <details className="text-xs text-muted-foreground">
-                                <summary className="w-fit rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Session details</summary>
+                                <summary data-usage-action="session.details" className="w-fit rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Session details</summary>
                                 <div className="flex flex-col gap-1 pt-2">
                                   <p>{formatNumber(session.seconds)} seconds recorded</p>
                                   {session.started_at && <p>Opened: {formatDateTime(session.started_at)}</p>}
@@ -238,7 +238,7 @@ export function BookDetailDialog({
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recorded reading activity</CardTitle>
+                    <CardTitle data-usage-view="activity">Recorded reading activity</CardTitle>
                     <CardDescription>
                       {formatDuration(book.reading_duration.source_seconds)} recorded · Estimated daily split.
                       {book.reading_duration.unallocated_seconds > 0 && (
@@ -328,7 +328,7 @@ export function BookDetailDialog({
                       <div className="flex items-start gap-3">
                         <Timer className="mt-0.5 size-5 text-primary" />
                         <div>
-                          <CardDescription>{book.remaining_estimate_source === "sessions"
+                          <CardDescription data-usage-view="remaining">{book.remaining_estimate_source === "sessions"
                             ? "Time remaining · sessions"
                             : book.remaining_estimate_source === "observations"
                               ? "Time remaining · reading history"

@@ -1,3 +1,4 @@
+import { trackUsage } from "./usage"
 import { useMemo, useSyncExternalStore } from "react"
 
 export const browseDefaults = {
@@ -45,6 +46,7 @@ export function parseBrowseState(search: string): BrowseState {
 }
 
 export function updateBrowseState(patch: Partial<BrowseState>, mode: "push" | "replace" = "push") {
+  const previous = parseBrowseState(window.location.search)
   const url = new URL(window.location.href)
   for (const key of Object.keys(patch) as Array<keyof BrowseState>) {
     const value = patch[key]
@@ -53,6 +55,12 @@ export function updateBrowseState(patch: Partial<BrowseState>, mode: "push" | "r
     else url.searchParams.set(key, String(value))
   }
   if (url.href === window.location.href) return
+  for (const key of Object.keys(patch) as Array<keyof BrowseState>) {
+    if (key === "book" || key === "search" || patch[key] === previous[key]) continue
+    // Page resets accompanying filters are not pagination actions.
+    if (key === "page" && Object.keys(patch).length > 1) continue
+    trackUsage(`library.${key}`)
+  }
   if (mode === "replace") window.history.replaceState(null, "", url)
   else window.history.pushState(null, "", url)
   window.dispatchEvent(new Event(changeEvent))
