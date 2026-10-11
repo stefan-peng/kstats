@@ -309,6 +309,12 @@ button.duration-heatmap-cell {
   }
 }
 
+/* Paint card outlines inside their bounds so scroll containers cannot clip
+   the left edge. Use the same border token as the other boxed surfaces. */
+[data-slot="card"] {
+  @apply ring-inset ring-border;
+}
+
 /* Native scrollbar tracks sit inside the panel padding, clear of content. */
 .scroll-region {
   scrollbar-gutter: stable;

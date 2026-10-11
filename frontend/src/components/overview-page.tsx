@@ -452,7 +452,7 @@ export function OverviewPage({
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    width={52}
+                    width={72}
                     tickFormatter={(value) => formatDuration(Number(value))}
                     tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
                   />

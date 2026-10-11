@@ -248,7 +248,7 @@ export function BookDetailDialog({
                   </CardHeader>
                   <CardContent>
                     {readingDurationSeries.length === 0 ? (
-                      <p className="flex h-44 items-center justify-center text-sm text-muted-foreground">
+                      <p className="py-2 text-sm text-muted-foreground">
                         {book.reading_duration.unallocated_seconds > 0
                           ? "Daily reading time is unavailable for this telemetry."
                           : "No detailed reading telemetry is available for this book."}
@@ -282,7 +282,7 @@ export function BookDetailDialog({
                           <YAxis
                             tickLine={false}
                             axisLine={false}
-                            width={52}
+                            width={72}
                             tickFormatter={(value) =>
                               Number(value) === 0 ? "" : formatDuration(Number(value))
                             }
